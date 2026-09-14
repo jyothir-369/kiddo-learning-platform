@@ -1,0 +1,1 @@
+"""Kiddo Assist — offline content pipeline (collection → gates → embed)."""

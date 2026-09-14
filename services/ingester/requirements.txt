@@ -1,0 +1,7 @@
+# Kiddo Assist ingester — offline content pipeline.
+# Iteration 1: uses the api data layer (lancedb) + BGE-M3 embeddings for the dev seed.
+lancedb>=0.13
+pyarrow>=16.0
+FlagEmbedding>=1.2.10
+torch>=2.2
+# Re-exported helpers from services/api (db.py, config.py) — no extra deps.
