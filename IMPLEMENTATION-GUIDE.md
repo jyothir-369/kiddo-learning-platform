@@ -1,4 +1,6 @@
-# Kiddo Learning Platform — Implementation Guide
+# Kiddo Assist — Implementation Guide
+
+**The core loop (source of truth):** *the child speaks → Kiddo Assist fetches the best video from the knowledge base → it plays on this platform → Kiddo Assist speaks as a friend and guide.* Product name: **Kiddo Assist** (SOT-14).
 
 This document is the build book for turning `kiddo-architecture.md` into a working, local, **100% open-source, $0/month** product. Read it end-to-end once before starting; then use each phase's "definition of done" as your gate.
 
@@ -32,7 +34,7 @@ Three cooperating systems plus one personality thread (from the architecture doc
 - **Live request flow** — child → STT → safety → orchestrator (3 agents) → RAG+LLM → output safety → video player + TTS
 - **Content ingestion** — offline: collect openly-licensed content → transcript → safe → approve → embed → DBs
 - **Parent system** — authenticated dashboard: progress, controls, reports, config
-- **Kiddo persona** — friendly companion with memory; play layer; growth progression (§2.8–§2.10 of the architecture doc)
+- **Kiddo Assist persona** — friendly companion with memory; play layer; growth progression (§2.8–§2.10 of the architecture doc)
 
 ---
 
@@ -71,7 +73,9 @@ Three cooperating systems plus one personality thread (from the architecture doc
 
 ---
 
-## 5. Repository layout (proposed monorepo)
+## 5. Repository layout (monorepo — project root)
+
+The `kiddo/` prefix in the tree below is the project's top-level directory (root-as-monorepo), not a subfolder — the repo root already holds the docs above and will contain this entire tree.
 
 ```
 kiddo/
@@ -152,7 +156,7 @@ Flow: `audio → faster-whisper (text)`, then `text → fastText lid.176 (langua
 2. **Embed** — bge-m3 via `FlagEmbedding` (dense 1024-d + sparse tokens).
 3. **Search** — LanceDB: `table.search(q_emb).where("age_range=? AND safety=? AND lang=?", ...).limit(30)` (filter-before-retrieve — the catalog stays small, so hard filters first is correct; revisit if the catalog grows past ~100k rows).
 4. **Rerank** — bge-reranker-base over survivors.
-5. **Format & video selection** — score `relevance × quality × age_fit × duration_fit`; pick the **single best video** (`type=video`) when its score clears the bar; otherwise fall back to a text + quiz answer.
+5. **Format & video selection** — score `relevance × quality × age_fit × duration_fit`; pick the **single best video** (`type=video` or a `tutorial` step) when its score clears the bar; the response also returns a ranked **`suggested_videos[]`** (next 2–4 best, SOT-05); otherwise fall back to a text + quiz answer.
 6. **LLM** — Gemma explains around the chosen video.
 
 ### 6.7 LLM — Ollama + Gemma (arch §2.6)
@@ -184,6 +188,7 @@ Flow: `audio → faster-whisper (text)`, then `text → fastText lid.176 (langua
   - **Embed-only** (free/non-commercial limits): **Khan Academy** (its content is generally **CC-BY-NC-SA** — non-commercial + share-alike), **CK-12** and **TED-Ed** (**CC-BY-NC**).
   - **Enforce at ingest:** verify the specific license on each asset, store it in `content_items.license`, and reject items that conflict with your use case. This field is a hard gate, not a label.
 - **Process:** clean text; if video, save `transcript` (from the source's subtitles/transcript API; never rely on us transcribing uploaded media).
+- **Completeness gate:** `video` needs transcript + attribution + topic; `tutorial` needs ordered steps covering a stated learning goal + a check-for-understanding; `source` needs an identifiable full work or labeled excerpt. Failures are quarantined `incomplete` — never searchable.
 - **Safety + quality checks:** ShieldGemma on transcript + human eyeball.
 - **Human approval gate:** new rows land in `content_items.status=review`; `review_cli.py` (or a tiny parent-dashboard admin page) flips them to `approved`. Nothing goes live before approval.
 - **Embed:** bge-m3 → LanceDB; write `content_items` metadata to SQLite simultaneously (arch's "all three DBs at once" — in this build that's LanceDB vectors + SQLite metadata; the third "content DB" is the same SQLite row carrying the URL).
@@ -202,7 +207,7 @@ Flow: `audio → faster-whisper (text)`, then `text → fastText lid.176 (langua
 
 - `learners(id, name, age, language, parent_id, profile_json)` — profile_json = friendship memory + interests
 - `parents(id, email, auth_id)`
-- `content_items(id, type[video|text|game], title, url, transcript, language, age_range, difficulty, duration_s, skills, safety_tags, license, source, attribution, status[review|approved|rejected])`
+- `content_items(id, type[video|tutorial|source|game], title, url, transcript, language, age_range, difficulty, duration_s, skills, safety_tags, license, source, attribution, status[review|approved|rejected], tutorial_steps)` — `tutorial` = an ordered sequence teaching one topic end-to-end; completeness gate at ingest (`WORKFLOW.md` §6.2)
 - `progress(id, learner_id, item_id, watched_seconds, quiz_score, ts)`
 - `skills(id, name, parents)` — the skill graph
 - `content_skills(content_id, skill_id)`
@@ -221,7 +226,7 @@ Flow: `audio → faster-whisper (text)`, then `text → fastText lid.176 (langua
 | Endpoint | Method | Purpose |
 |---|---|---|
 | `/api/health` | GET | liveness |
-| `/api/chat` | POST | main loop; body: `{text}` or `{audio}` (multipart). Returns `{answer, video_url?, audio_url?, quiz?, suggested_next}` |
+| `/api/chat` | POST | main loop; body: `{text}` or `{audio}` (multipart). Returns WORKFLOW §10 contract: `{assistant_name:"Kiddo Assist", answer, audio_url?, video_url?, video?, suggested_videos[], tutorial?, quiz?, suggested_next, safety:{verdict}}` |
 | `/api/videos/{id}` | GET | stream-by-reference metadata (URL for player) |
 | `/api/audio/{id}` | GET | cached Kokoro WAV (optional; can be returned inline) |
 | `/api/profile` | GET/POST | child-facing profile (interests etc., cosy UI) |
@@ -237,13 +242,13 @@ Flow: `audio → faster-whisper (text)`, then `text → fastText lid.176 (langua
 | 0 | Skeleton | `docker compose up` starts api + web; `/api/health` green; Ollama reachable |
 | 1 | Text chat loop | Child types → Gemma answers with output safety; safe holding on block |
 | 2 | RAG | Ask "why is the sky blue?" returns answer citing an ingested content item |
-| 3 | **Video-first** | Question → best video selected → plays in in-app player; TTS voice explains |
+| 3 | **Video-first** | Question → best video selected → plays in in-app player; `suggested_videos[]` listed; TTS voice explains |
 | 4 | Input safety | Bad/jailbreak prompt → hard-block or soft-tag correctly |
 | 5 | Voice I/O | Speech in → text; answer → spoken voice out |
-| 6 | Multilingual | Hindi question → correct Hindi spoken answer (pivot EN internally) |
+| 6 | Multilingual (EXT-02) | Hindi question → correct Hindi spoken answer (pivot EN internally) |
 | 7 | Persona | Kiddo references the child's name/favorites; proactive greeting |
 | 8 | Play + progress | Streak increments; badge on milestone; "next step" suggestion |
-| 9 | Parent dashboard | Parent logs in; sees progress + reports; sets controls that take effect |
+| 9 | Parent dashboard (EXT-01) | Parent logs in; sees progress + reports; sets controls that take effect |
 | 10 | Ingestion + approval | New approved content searchable same-day; review gate enforced |
 
 ---
@@ -287,6 +292,7 @@ A scored checklist run before every release:
 - No third-party video bytes stored (assert on filesystem).
 - Child-voice audio (a consented sample) → transcription correct, and if not, the text-input/dual-ASR fallback path engages cleanly.
 - Every ingested asset carries a `license` value that passes a per-source allowlist check (NC sources flagged embed-only).
+- **Voice-always invariant (SOT-15):** every non-blocked chat response carries a non-null, fetchable `audio_url`; hard-block responses carry holding words instead of silence.
 
 ---
 

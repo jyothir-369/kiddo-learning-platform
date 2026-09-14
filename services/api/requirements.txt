@@ -1,0 +1,5 @@
+# Kiddo Assist API — Iteration 0 base requirements.
+# Later iterations add the ML stack (faster-whisper, transformers, kokoro, bge-m3, LanceDB...).
+fastapi>=0.115
+uvicorn[standard]>=0.30
+httpx>=0.27

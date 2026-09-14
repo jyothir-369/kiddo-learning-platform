@@ -1,4 +1,6 @@
-# Kiddo Learning Platform — Architecture Guide
+# Kiddo Assist — Architecture Guide
+
+**The core loop (source of truth):** *the child speaks → Kiddo Assist fetches the best video from the knowledge base → it plays on this platform → Kiddo Assist speaks as a friend and guide.* Everything in this design serves that loop. Product name: **Kiddo Assist** (SOT-14).
 
 This document walks through the full system: how a child's question turns into a safe, personalized answer, how content gets into the system in the first place, and how parents stay in the loop.
 
@@ -24,7 +26,7 @@ flowchart TB
     H --> B
 ```
 
-A fourth thread runs through all of this: **Kiddo the companion**. Kiddo is not just an answer box — a warm, always-on friend persona with a memory of each child, who speaks proactively, celebrates wins, and turns learning into playful fun. The rest of this document goes through each system in order.
+A fourth thread runs through all of this: **Kiddo Assist the companion**. Kiddo Assist is not just an answer box — a warm, always-on friend persona with a memory of each child, who speaks proactively, celebrates wins, and turns learning into playful fun. The rest of this document goes through each system in order.
 
 ---
 
@@ -60,7 +62,7 @@ React/Next.js app handling chat, voice recording, an animated avatar, video play
 ### 2.2 API gateway
 FastAPI service that authenticates the session, routes requests, applies rate limiting, and logs traffic (useful later for parent reports).
 
-### 2.3 Multilingual layer
+### 2.3 Multilingual layer (extension EXT-02 — ships after the core loop)
 Handles anything language-related before the question reaches the "thinking" part of the system.
 
 ```mermaid
@@ -137,7 +139,7 @@ flowchart TD
 | Metadata filter | Hard filters on age range, language, safety clearance, difficulty level, and max duration |
 | Reranking | Reorders survivors by true relevance and content quality |
 | Content ranker | Adds personalization — this specific child's history and interests |
-| Format & video selection | Chooses the strongest deliverable — usually a single best-fit video (relevance, quality, age-fit) to play in the player; otherwise text, quiz, or game |
+| Format & video selection | Chooses the strongest deliverable — usually a single best-fit video (relevance, quality, age-fit) to play in the player; the response also returns a ranked **`suggested_videos[]`** (next 2–4 best videos, SOT-05). Otherwise text, quiz, or game |
 | LLM | Generates the spoken explanation that runs alongside the video — or the quiz/activity when a video isn't the best fit |
 | Output safety | Re-checks the generated response before it goes out |
 
@@ -167,11 +169,12 @@ This loop also feeds:
 - **Learner profile** — age, language, skill level, interests, history, friendship memory
 - **Personalization** — feeds back into the recommendation agent and content ranker
 
-### 2.8 Kiddo companion persona (the friend)
+### 2.8 Kiddo Assist companion persona (the friend)
 
-Kiddo is a friend, not a search box. This layer shapes *how* everything is said, not just what is said.
+Kiddo Assist is a friend, not a search box. This layer shapes *how* everything is said, not just what is said.
 
 - **Speaks first** — greets the child, checks in, and nudges gently after idle time instead of waiting to be asked
+- **Speaks always** — after voice ships, every child-visible turn has a spoken line (SOT-15); silence is a bug
 - **Warm, patient, age-tuned** — simpler words and shorter answers for younger children, never condescending
 - **Friendship memory** — remembers names, favorite animals and colors, pets, birthdays, and recent wins; references them naturally ("You told me about your dog — let's learn about animal sounds!")
 - **Celebrates wins** — praise after quizzes, stickers for effort, not just correct answers
@@ -199,6 +202,8 @@ The promise is to "help them grow," so Kiddo tracks growth over time:
 ---
 
 ## 3. Content ingestion pipeline (offline)
+
+**Content types:** `video`, `source`, `tutorial`, `game`. A `tutorial` is a first-class, ordered sequence that teaches one topic end-to-end (steps 1…N, each step a video or activity); it must have a start, a middle, an end, a skill, and a check-for-understanding. A single orphan clip is **not** a tutorial — the completeness gate at ingest enforces this.
 
 This runs separately from the live flow to build and maintain the knowledge base.
 
@@ -229,7 +234,7 @@ flowchart TD
 
 ---
 
-## 4. Parent system
+## 4. Parent system (extension EXT-01 — ships after the core loop)
 
 A separate authenticated area for parents, disconnected from the child's live flow except through configuration.
 
@@ -253,7 +258,7 @@ flowchart TD
 
 ## 5. Suggested build order
 
-If starting from scratch, roughly in this order:
+If starting from scratch, roughly in this order. Note: the product is **not Kiddo Assist until step 4 — the video loop — works**; `WORKFLOW.md` §12 is the hard gate, and steps 1–3 are scaffolding toward it.
 
 1. Frontend chat + API gateway (basic text-only loop)
 2. Content DB + simple RAG (no multilingual yet)
@@ -272,10 +277,10 @@ If starting from scratch, roughly in this order:
 
 ## 6. Open questions worth deciding early
 
-- **Pivot language**: what's the single internal language everything normalizes to?
+- **~~Pivot language~~** **Resolved:** English (locked with the product owner — `IMPLEMENTATION-GUIDE.md` §1, `WORKFLOW.md` §14.1).
 - **Safety threshold**: hard block vs. soft-tag-and-monitor for ambiguous distress signals?
-- **Filter order**: filter-before-retrieval or filter-after, depending on catalog size?
-- **Escalation path**: what happens, concretely, when a serious safety flag fires — who gets notified, how fast, and what does the child see in the meantime?
+- **~~Filter order~~** **Resolved:** filter-before-retrieval while the catalog is small (`IMPLEMENTATION-GUIDE.md` §6.6).
+- **~~Escalation path~~** **Resolved:** `safety_events` written immediately + parent webhook, and the child hears a safe holding line with a trusted-adult prompt (`WORKFLOW.md` §14.1).
 - **Video relevance bar**: when is a video "good enough" to play vs. falling back to a spoken answer? Who sets the "best videos" quality bar?
 - **Gamification limits**: how much reward scaffolding is healthy per age band, and how are streaks/badges kept from feeling punishing if a child misses days?
 - **Companion depth**: how "social" should Kiddo's memory get, and where does the friendship-memory boundary sit so warmth never tips into overreach?

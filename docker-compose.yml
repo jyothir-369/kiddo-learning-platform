@@ -1,0 +1,46 @@
+# Kiddo Assist — Docker Compose (Iteration 0 skeleton)
+# Services: ollama (LLM runtime), api (FastAPI gateway), web (Next.js UI).
+# Guide §10 is the deployment spec; tightened in Iteration 17.
+name: kiddo-assist
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: kiddo-assist-ollama
+    volumes:
+      - ollama_models:/root/.ollama
+    ports:
+      - "11434:11434"
+    environment:
+      # CPU-only build (guide §10); set to physical cores in .env.
+      OLLAMA_NUM_THREADS: ${OLLAMA_NUM_THREADS:-4}
+
+  api:
+    build: ./services/api
+    container_name: kiddo-assist-api
+    depends_on:
+      - ollama
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      ASSISTANT_NAME: Kiddo Assist
+      GEMMA_TAG: ${GEMMA_TAG:-gemma3:4b}
+      DATA_DIR: /app/data
+    volumes:
+      # Bind mount so profiles/vector store/audio live on the host repo.
+      - ./data:/app/data
+    ports:
+      - "8000:8000"
+
+  web:
+    build: ./services/web
+    container_name: kiddo-assist-web
+    depends_on:
+      - api
+    environment:
+      # Browser-facing address of the API.
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+
+volumes:
+  ollama_models:

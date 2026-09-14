@@ -1,0 +1,20 @@
+# env
+.env
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# node / next
+node_modules/
+.next/
+out/
+
+# runtime data (SQLite, LanceDB vectors, cached audio, model caches)
+data/*
+!data/.gitkeep
+
+# logs
+*.log
