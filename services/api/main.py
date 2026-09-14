@@ -1,15 +1,22 @@
 """Kiddo Assist API — FastAPI gateway.
 
-Iteration 0 (skeleton) scope: liveness /health only.
-Later iterations add /api/chat, /api/videos/{id}, /api/audio/{id},
-/api/profile, /api/parent/*, /api/ingest and the service modules
-(safety, orchestrator, rag, llm, tts, stt, video, persona, ...).
+Iteration 0: liveness /health.
+Iteration 2 (Phase 1): /api/chat text chat loop with LLM + output safety.
+Later iterations add /api/videos/{id}, /api/audio/{id}, /api/profile,
+/api/parent/*, /api/ingest, and ML service layers (RAG, TTS, STT, video, persona...).
 """
+from __future__ import annotations
+
+from typing import Any, Optional
+
 import httpx
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 
 from config import ASSISTANT_NAME, OLLAMA_HOST
+import llm
+import safety
 
 app = FastAPI(title=f"{ASSISTANT_NAME} API", version="0.1.0")
 
@@ -23,8 +30,61 @@ app.add_middleware(
 )
 
 
+# ---------------------------------------------------------------------------
+# Pydantic Schemas for API Contracts (WORKFLOW §10)
+# ---------------------------------------------------------------------------
+
+class ChatRequest(BaseModel):
+    text: str = Field(..., min_length=1, max_length=4000, description="Child's typed message or transcribed input")
+    learner_id: Optional[str] = Field(None, description="Optional learner ID")
+    age: Optional[int] = Field(None, ge=3, le=18, description="Child's age for age-tuning")
+
+
+class VideoMetadata(BaseModel):
+    id: str
+    title: str
+    attribution: Optional[str] = None
+    license: Optional[str] = None
+    duration_s: Optional[int] = None
+
+
+class SuggestedVideoItem(BaseModel):
+    id: str
+    title: str
+    reason: Optional[str] = None
+
+
+class TutorialMetadata(BaseModel):
+    id: str
+    title: str
+    step: int
+    total_steps: int
+
+
+class SafetyPayload(BaseModel):
+    verdict: str  # "pass" | "soft" | "hard"
+    flag: Optional[str] = None
+
+
+class ChatResponse(BaseModel):
+    assistant_name: str = ASSISTANT_NAME
+    answer: str
+    audio_url: Optional[str] = None
+    video_url: Optional[str] = None
+    video: Optional[VideoMetadata] = None
+    suggested_videos: list[SuggestedVideoItem] = Field(default_factory=list)
+    tutorial: Optional[TutorialMetadata] = None
+    quiz: Optional[dict[str, Any]] = None
+    suggested_next: Optional[str] = None
+    safety: SafetyPayload
+
+
+# ---------------------------------------------------------------------------
+# Health / Liveness
+# ---------------------------------------------------------------------------
+
 async def _ollama_status() -> str:
-    """Reports whether the Ollama service is reachable (not whether a model is loaded)."""
+    """Reports whether the Ollama service is reachable."""
     try:
         async with httpx.AsyncClient(timeout=3.0) as client:
             resp = await client.get(f"{OLLAMA_HOST}/api/tags")
@@ -42,3 +102,70 @@ async def health() -> dict:
         "assistant": ASSISTANT_NAME,
         "ollama": ollama,
     }
+
+
+# ---------------------------------------------------------------------------
+# Core Chat Loop (Iteration 2 / Phase 1)
+# ---------------------------------------------------------------------------
+
+@app.post("/api/chat", response_model=ChatResponse)
+async def chat(req: ChatRequest) -> ChatResponse:
+    """Core chat endpoint (WORKFLOW §10).
+
+    Takes the child's text, generates an age-tuned response from Gemma,
+    screens output via the safety classifier, and returns the response skeleton.
+    """
+    clean_text = req.text.strip()
+    if not clean_text:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Message text cannot be empty.",
+        )
+
+    # 1. Generate response from LLM (Gemma via Ollama or simulation backend)
+    try:
+        raw_answer = await llm.generate_response(
+            clean_text,
+            age=req.age,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Assistant generation unavailable: {exc}",
+        ) from exc
+
+    # 2. Output safety classification + PII redaction
+    verdict = safety.check_output(raw_answer, learner_id=req.learner_id)
+
+    if verdict.is_blocked:
+        final_answer = verdict.holding_text or safety.HOLDING_RESPONSE
+        safety_payload = SafetyPayload(
+            verdict="hard",
+            flag=verdict.category,
+        )
+    elif verdict.verdict == "soft":
+        final_answer = verdict.redacted_text
+        safety_payload = SafetyPayload(
+            verdict="soft",
+            flag=verdict.category,
+        )
+    else:
+        final_answer = verdict.redacted_text
+        safety_payload = SafetyPayload(
+            verdict="pass",
+            flag=None,
+        )
+
+    # 3. Build WORKFLOW §10 response skeleton
+    return ChatResponse(
+        assistant_name=ASSISTANT_NAME,
+        answer=final_answer,
+        audio_url=None,
+        video_url=None,
+        video=None,
+        suggested_videos=[],
+        tutorial=None,
+        quiz=None,
+        suggested_next=None,
+        safety=safety_payload,
+    )
