@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kiddo Assist — Complete Workflow</title>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: "base",
+      themeVariables: {
+        primaryColor: "#dbeafe",
+        primaryTextColor: "#0f172a",
+        primaryBorderColor: "#3b82f6",
+        lineColor: "#64748b",
+        secondaryColor: "#fef3c7",
+        tertiaryColor: "#f1f5f9",
+        fontFamily: "Georgia, 'Times New Roman', serif"
+      }
+    });
+  </script>
+  <style>
+    :root {
+      --ink: #0f172a;
+      --muted: #475569;
+      --line: #e2e8f0;
+      --paper: #f8fafc;
+      --white: #ffffff;
+      --accent: #1d4ed8;
+      --accent-soft: #dbeafe;
+      --good: #166534;
+      --good-bg: #dcfce7;
+      --warn: #92400e;
+      --warn-bg: #fef3c7;
+      --bad: #9f1239;
+      --bad-bg: #ffe4e6;
+      --extra: #5b21b6;
+      --extra-bg: #ede9fe;
+      --core: #0e7490;
+      --core-bg: #cffafe;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--paper);
+      font: 17px/1.6 Georgia, "Times New Roman", serif;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      min-height: 100vh;
+    }
+    nav {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow: auto;
+      background: var(--white);
+      border-right: 1px solid var(--line);
+      padding: 1.5rem 1rem 2rem;
+    }
+    nav h1 {
+      font-size: 0.95rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin: 0 0 0.25rem;
+    }
+    nav .sub {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 1.25rem;
+    }
+    nav a {
+      display: block;
+      color: var(--ink);
+      text-decoration: none;
+      font-size: 0.88rem;
+      padding: 0.28rem 0.4rem;
+      border-radius: 6px;
+      line-height: 1.35;
+    }
+    nav a:hover { background: var(--accent-soft); }
+    nav a.l2 { padding-left: 1rem; color: var(--muted); font-size: 0.8rem; }
+    main { padding: 2.5rem 3rem 5rem; max-width: 980px; }
+    header.hero {
+      background: linear-gradient(180deg, #eff6ff, #ffffff);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 2rem 2rem 1.5rem;
+      margin-bottom: 2rem;
+    }
+    header.hero h1 { margin: 0 0 0.4rem; font-size: 2.1rem; }
+    .meta { color: var(--muted); font-size: 0.95rem; }
+    .meta code { font-size: 0.85em; }
+    .jobs { margin: 1rem 0 0; padding-left: 1.2rem; }
+    h2 {
+      margin-top: 2.6rem;
+      padding-top: 0.6rem;
+      border-top: 1px solid var(--line);
+      font-size: 1.55rem;
+    }
+    h3 { margin-top: 1.8rem; font-size: 1.2rem; }
+    h4 { margin-top: 1.2rem; }
+    p, li { color: var(--ink); }
+    .muted { color: var(--muted); }
+    code, pre {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    code {
+      background: #f1f5f9;
+      padding: 0.08em 0.35em;
+      border-radius: 4px;
+      font-size: 0.86em;
+    }
+    pre {
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 1rem 1.1rem;
+      border-radius: 10px;
+      overflow: auto;
+      font-size: 0.82rem;
+      line-height: 1.45;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.92rem;
+      margin: 0.8rem 0 1.4rem;
+      background: var(--white);
+    }
+    th, td {
+      border: 1px solid var(--line);
+      padding: 0.55rem 0.65rem;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: #f1f5f9; font-weight: 600; }
+    tr:nth-child(even) td { background: #fafbfc; }
+    .badge {
+      display: inline-block;
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      padding: 0.15rem 0.45rem;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+    .met { background: var(--good-bg); color: var(--good); }
+    .partial { background: var(--warn-bg); color: var(--warn); }
+    .missing { background: var(--bad-bg); color: var(--bad); }
+    .extra { background: var(--extra-bg); color: var(--extra); }
+    .core { background: var(--core-bg); color: var(--core); }
+    .loop {
+      background: #0f172a;
+      color: #f8fafc;
+      border-radius: 14px;
+      padding: 1.4rem 1.6rem;
+      margin: 1rem 0 1.2rem;
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      font-size: 0.92rem;
+      line-height: 1.7;
+    }
+    .loop .arrow { color: #93c5fd; }
+    .callout {
+      border-left: 4px solid var(--accent);
+      background: var(--accent-soft);
+      padding: 0.8rem 1rem;
+      border-radius: 0 10px 10px 0;
+      margin: 1rem 0;
+    }
+    .callout.warn { border-color: #d97706; background: var(--warn-bg); }
+    .mermaid { background: var(--white); border: 1px solid var(--line); border-radius: 12px; padding: 1rem; margin: 1rem 0 1.4rem; overflow: auto; }
+    .ui {
+      background: #0f172a;
+      color: #e2e8f0;
+      border-radius: 14px;
+      padding: 1.1rem 1.2rem;
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      font-size: 0.8rem;
+      line-height: 1.45;
+      white-space: pre;
+      overflow: auto;
+    }
+    .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .card {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 1rem 1.1rem;
+    }
+    .card h3 { margin-top: 0; }
+    footer {
+      margin-top: 3rem;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    @media (max-width: 960px) {
+      .layout { grid-template-columns: 1fr; }
+      nav { position: relative; height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+      main { padding: 1.4rem 1.1rem 3rem; }
+      .cols { grid-template-columns: 1fr; }
+    }
+    @media print {
+      nav { display: none; }
+      .layout { display: block; }
+      main { max-width: none; padding: 0; }
+      .mermaid { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <nav>
+      <h1>Kiddo Assist</h1>
+      <div class="sub">Complete workflow · source of truth</div>
+      <a href="#top">Overview</a>
+      <a href="#s0">0. Source of truth</a>
+      <a class="l2" href="#s01">0.1 Intent</a>
+      <a class="l2" href="#s02">0.2 Requirements</a>
+      <a class="l2" href="#s03">0.3 The one loop</a>
+      <a class="l2" href="#s04">0.4 Not in the spec</a>
+      <a href="#s1">1. Architecture vs SOT</a>
+      <a href="#s2">2. Implementation vs SOT</a>
+      <a href="#s3">3. Product definition</a>
+      <a href="#s4">4. System map</a>
+      <a href="#s5">5. Child session</a>
+      <a href="#s6">6. Knowledge base</a>
+      <a href="#s7">7. Safety</a>
+      <a href="#s8">8. Friend, play, grow</a>
+      <a href="#s9">9. Parent (extension)</a>
+      <a href="#s10">10. API contract</a>
+      <a href="#s11">11. Frontend</a>
+      <a href="#s12">12. Build phases</a>
+      <a href="#s13">13. Testing</a>
+      <a href="#s14">14. Decisions</a>
+      <a href="#s15">15. Doc corrections</a>
+      <a href="#s16">16. Cheat sheet</a>
+    </nav>
+
+    <main id="top">
+      <header class="hero">
+        <h1>Kiddo Assist — Complete Workflow</h1>
+        <p class="meta">
+          <strong>Source of truth:</strong> <code>an agent for the children(kids) for.txt</code><br />
+          <strong>Checked against:</strong> <code>kiddo-architecture.md</code>, <code>IMPLEMENTATION-GUIDE.md</code><br />
+          <strong>Product name (from source of truth):</strong> Kiddo Assist<br />
+          Companion to <code>WORKFLOW.md</code>
+        </p>
+        <ol class="jobs">
+          <li>Restates the product from the source-of-truth file — nothing more, nothing less.</li>
+          <li>Verifies the architecture and implementation plan against that file.</li>
+          <li>Details the complete workflows: child session, video loop, safety, ingestion, parent (extension), and build order.</li>
+        </ol>
+        <p class="callout">If architecture or implementation disagrees with the source of truth, the source of truth wins.</p>
+      </header>
+
+      <h2 id="s0">0. Source of truth — extracted requirements</h2>
+      <p>The source file is informal, but every sentence is a requirement. Nothing in it is optional.</p>
+
+      <h3 id="s01">0.1 Verbatim intent (normalized, not expanded)</h3>
+      <p>Kiddo Assist is a <strong>friend AI for children</strong>. It:</p>
+      <ul>
+        <li>Helps them <strong>learn</strong> from <strong>complete sources</strong> and <strong>complete tutorials</strong>.</li>
+        <li><strong>Suggests the best videos</strong> for them.</li>
+        <li><strong>Plays</strong> those videos <strong>with relevance</strong> (learning, playful learning, fun learning).</li>
+        <li>Is <strong>never harmful</strong>.</li>
+        <li>Helps them <strong>grow</strong>, <strong>learn things</strong>, and <strong>guides</strong> them — a good guider.</li>
+        <li>After the child <strong>speaks</strong> to the assistant, it <strong>fetches the video from the knowledge base</strong> and <strong>displays it on this platform’s interface</strong>.</li>
+        <li><strong>Speaks to them always</strong>.</li>
+        <li><strong>Is a friend</strong> with them.</li>
+        <li>Is named <strong>Kiddo Assist</strong>.</li>
+      </ul>
+
+      <h3 id="s02">0.2 Requirement inventory</h3>
+      <table>
+        <thead><tr><th>ID</th><th>Requirement</th><th>Kind</th></tr></thead>
+        <tbody>
+          <tr><td>SOT-01</td><td>Agent is for children / kids</td><td>Audience</td></tr>
+          <tr><td>SOT-02</td><td>Learning is the purpose</td><td>Purpose</td></tr>
+          <tr><td>SOT-03</td><td>Knowledge base holds complete sources</td><td>Content</td></tr>
+          <tr><td>SOT-04</td><td>Knowledge base holds complete tutorials</td><td>Content</td></tr>
+          <tr><td>SOT-05</td><td>Suggest the <strong>best</strong> videos (ranked, not random)</td><td>Video</td></tr>
+          <tr><td>SOT-06</td><td>Play videos <strong>with relevance</strong> (matched to what was just said)</td><td>Video</td></tr>
+          <tr><td>SOT-07</td><td>Learning + playful learning + fun learning</td><td>Pedagogy</td></tr>
+          <tr><td>SOT-08</td><td>Nothing is harmful</td><td>Safety</td></tr>
+          <tr><td>SOT-09</td><td>Friend AI (not a search box / tutor-only)</td><td>Persona</td></tr>
+          <tr><td>SOT-10</td><td>Helps them grow</td><td>Progression</td></tr>
+          <tr><td>SOT-11</td><td>Guides them — a good guider</td><td>Guidance</td></tr>
+          <tr><td>SOT-12</td><td>Child <strong>speaks</strong> → assistant fetches video from <strong>knowledge base</strong></td><td><span class="badge core">Core loop</span></td></tr>
+          <tr><td>SOT-13</td><td>Video <strong>displays on this platform interface</strong> (in-app, not a tab away)</td><td><span class="badge core">Core loop</span></td></tr>
+          <tr><td>SOT-14</td><td>Name is <strong>Kiddo Assist</strong></td><td>Identity</td></tr>
+          <tr><td>SOT-15</td><td>Assistant <strong>speaks always</strong> (voice is the default, not an add-on)</td><td>Voice</td></tr>
+          <tr><td>SOT-16</td><td>Be friends with them (ongoing relationship)</td><td>Persona</td></tr>
+        </tbody>
+      </table>
+
+      <h3 id="s03">0.3 The one loop that must never be lost</h3>
+      <div class="loop">
+        Child speaks to Kiddo Assist<br />
+        <span class="arrow">        ↓</span><br />
+        Kiddo Assist understands (safely)<br />
+        <span class="arrow">        ↓</span><br />
+        Fetch the best matching video from the knowledge base<br />
+        <span class="arrow">        ↓</span><br />
+        Display / play that video on this platform<br />
+        <span class="arrow">        ↓</span><br />
+        Kiddo Assist speaks around it — as a friend, as a guide
+      </div>
+      <p class="callout warn">If a design, phase, or API response cannot do this loop, it is not Kiddo Assist yet.</p>
+
+      <h3 id="s04">0.4 What the source of truth does <em>not</em> say</h3>
+      <p>These are reasonable product extensions. They must stay labeled as extensions so they never outrank SOT-01…SOT-16.</p>
+      <table>
+        <thead><tr><th>ID</th><th>Extension</th><th>Why it exists</th></tr></thead>
+        <tbody>
+          <tr><td>EXT-01</td><td>Parent dashboard, controls, reports</td><td>Child-safety / COPPA-style duty of care</td></tr>
+          <tr><td>EXT-02</td><td>Multilingual pivot (English internal, Hindi in/out)</td><td>Household language reality; not in the source file</td></tr>
+          <tr><td>EXT-03</td><td>Local open-source $0/month stack</td><td>Build constraint, not a child-facing requirement</td></tr>
+          <tr><td>EXT-04</td><td>Formal skill graph / curriculum standards</td><td>Makes “grow” and “guide” measurable</td></tr>
+          <tr><td>EXT-05</td><td>Docker / Ollama / CPU-only laptop</td><td>Runtime constraint</td></tr>
+          <tr><td>EXT-06</td><td>Stream-by-reference (never rehost video bytes)</td><td>Legal constraint for SOT-03 / SOT-05</td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="s1">1. Verification — architecture vs source of truth</h2>
+      <p>Legend:
+        <span class="badge met">Met</span> covered as specified.
+        <span class="badge partial">Partial</span> present but drifted.
+        <span class="badge missing">Missing</span> not in the architecture.
+        <span class="badge extra">Extra</span> in the architecture, not in the source of truth.
+      </p>
+      <table>
+        <thead><tr><th>SOT</th><th>Architecture coverage</th><th>Verdict</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>SOT-01 Children</td><td>Overview, input safety, child UI</td><td><span class="badge met">Met</span></td><td>Audience is correct.</td></tr>
+          <tr><td>SOT-02 Learning</td><td>Learning agent, RAG, LLM teach</td><td><span class="badge met">Met</span></td><td></td></tr>
+          <tr><td>SOT-03 Complete sources</td><td>Ingestion from trusted educational sources → 3 DBs</td><td><span class="badge partial">Partial</span></td><td>“Trusted sources” is specified; “complete” (full works / full topic coverage, not snippets) is not a stated ingest rule.</td></tr>
+          <tr><td>SOT-04 Complete tutorials</td><td>Skill graph, lessons as quests</td><td><span class="badge partial">Partial</span></td><td>Tutorials are not a first-class content type. <code>content</code> is videos / text / activities. A tutorial (ordered, complete sequence) is missing.</td></tr>
+          <tr><td>SOT-05 Suggest best videos</td><td>Content ranker picks <strong>one</strong> best-fit video</td><td><span class="badge partial">Partial</span></td><td>Source says <strong>suggest the best videos</strong> (plural) <strong>and</strong> play. Architecture only auto-plays the single winner. Need a ranked suggestion list + play the top one.</td></tr>
+          <tr><td>SOT-06 Play with relevance</td><td>RAG + metadata filter + rerank + video selection</td><td><span class="badge met">Met</span></td><td>Strongest part of the architecture.</td></tr>
+          <tr><td>SOT-07 Playful / fun</td><td>§2.9 Play &amp; fun learning layer</td><td><span class="badge met">Met</span></td><td></td></tr>
+          <tr><td>SOT-08 Nothing harmful</td><td>Input safety, output safety, safety agent, ingest safety + human gate</td><td><span class="badge met">Met</span></td><td>Stronger than the source file, correctly.</td></tr>
+          <tr><td>SOT-09 Friend AI</td><td>§2.8 Companion persona</td><td><span class="badge met">Met</span></td><td></td></tr>
+          <tr><td>SOT-10 Grow</td><td>§2.10 Learning growth progression</td><td><span class="badge met">Met</span></td><td></td></tr>
+          <tr><td>SOT-11 Guide</td><td>Recommendation agent + next-step guidance</td><td><span class="badge met">Met</span></td><td></td></tr>
+          <tr><td>SOT-12 Speak → fetch from KB</td><td>§2.7 video-first: answer → fetch best video from KB</td><td><span class="badge met">Met</span></td><td>This is the backbone.</td></tr>
+          <tr><td>SOT-13 Display on this platform</td><td>In-app video player</td><td><span class="badge met">Met</span></td><td></td></tr>
+          <tr><td>SOT-14 Name = Kiddo Assist</td><td>Document title is “Kiddo Learning Platform”; persona is “Kiddo”</td><td><span class="badge missing">Missing</span></td><td>Rename the product / persona to <strong>Kiddo Assist</strong>.</td></tr>
+          <tr><td>SOT-15 Speak always</td><td>TTS exists; text chat is equally primary</td><td><span class="badge partial">Partial</span></td><td>“Speak always” means Kiddo Assist <strong>talks on every turn</strong>, including greetings and video-alongside. Text is a fallback for STT failure, not the default product.</td></tr>
+          <tr><td>SOT-16 Be friends</td><td>Friendship memory, speaks first, celebrates wins</td><td><span class="badge met">Met</span></td><td></td></tr>
+        </tbody>
+      </table>
+
+      <h3>1.1 Architecture extras (keep, but do not let them bury the core loop)</h3>
+      <ul>
+        <li>Parent system (§4) — EXT-01. Necessary for a real children’s product. Must not delay SOT-12/SOT-13.</li>
+        <li>Multilingual layer (§2.3) — EXT-02. Correct for Hindi/English households; not a source requirement.</li>
+        <li>Three-agent orchestrator — good decomposition of SOT-08/SOT-11, not a conflict.</li>
+        <li>CPU-only OSS stack (Appendix A) — EXT-03/EXT-05. Implementation constraint.</li>
+      </ul>
+
+      <h3>1.2 Architecture internal issues (even where SOT is met)</h3>
+      <ol>
+        <li><strong>Name drift.</strong> “Kiddo”, “Kiddo the companion”, “Kiddo Learning Platform” — never “Kiddo Assist”.</li>
+        <li><strong>Single video vs suggested videos.</strong> §2.6 “usually a single best-fit video” under-serves SOT-05.</li>
+        <li><strong>No tutorial object.</strong> Quests/skills approximate SOT-04 but a child cannot be given “the complete tutorial on fractions” as one fetchable unit.</li>
+        <li><strong>Build order vs core loop.</strong> Architecture §5 puts video (the actual product) at step 4, which is acceptable for engineering, but the <strong>definition of the product</strong> is the video loop, not the text chat loop.</li>
+        <li><strong>Open questions that the implementation already answered</strong> are still listed as open in architecture §6 (pivot language, filter order). They should be marked resolved.</li>
+      </ol>
+
+      <h2 id="s2">2. Verification — implementation guide vs source of truth + architecture</h2>
+      <table>
+        <thead><tr><th>Check</th><th>Implementation coverage</th><th>Verdict</th></tr></thead>
+        <tbody>
+          <tr><td>SOT core loop (speak → KB video → in-app play)</td><td>Guiding principle #2 “Video-first”; phase 3 definition of done</td><td><span class="badge met">Met</span> as the build target</td></tr>
+          <tr><td>SOT-14 Name</td><td>Never uses “Kiddo Assist”</td><td><span class="badge missing">Missing</span></td></tr>
+          <tr><td>SOT-15 Speak always</td><td>Phase 1 is text-only; voice is phase 5</td><td><span class="badge partial">Partial</span> — fine as <em>build</em> order, missing as a <em>product</em> rule. Phase 3 TTS “explains alongside” is correct. After phase 5, silence on a turn is a bug.</td></tr>
+          <tr><td>SOT-04 Complete tutorials</td><td><code>content_items.type</code> = <code>video | text | game</code> — no <code>tutorial</code></td><td><span class="badge missing">Missing</span></td></tr>
+          <tr><td>SOT-05 Best videos (plural)</td><td><code>/api/chat</code> returns <code>video_url?</code> (singular)</td><td><span class="badge partial">Partial</span> — should also return <code>suggested_videos[]</code></td></tr>
+          <tr><td>SOT-03 Complete sources</td><td>Wikimedia / NASA / PhET / OpenStax + license gate</td><td><span class="badge partial">Partial</span> — good catalogs, but no “completeness” rule</td></tr>
+          <tr><td>SOT-08 Safety</td><td>ShieldGemma in + out, PII regex, human approval, eval suite</td><td><span class="badge met">Met</span></td></tr>
+          <tr><td>SOT-09 / SOT-16 Friend</td><td><code>persona.py</code>, friendship memory, proactive cron</td><td><span class="badge met">Met</span></td></tr>
+          <tr><td>SOT-10 / SOT-11 Grow + guide</td><td><code>progress.py</code>, skills, recommendation via frontier skills</td><td><span class="badge met">Met</span></td></tr>
+          <tr><td>Architecture 3 agents</td><td><code>orchestrator.py</code> learning / recommendation / safety</td><td><span class="badge met">Met</span></td></tr>
+          <tr><td>Architecture 3 DBs</td><td>Collapsed to LanceDB + SQLite</td><td>Acceptable — documented, equivalent</td></tr>
+          <tr><td>Architecture build order 12 steps</td><td>11 phases (0–10); recommendation agent has no own phase</td><td><span class="badge partial">Partial drift</span></td></tr>
+          <tr><td>Filter-before-retrieve</td><td>Locked (catalog small)</td><td>Resolved (architecture still lists as open)</td></tr>
+          <tr><td>Pivot = English</td><td>Locked</td><td>Resolved</td></tr>
+          <tr><td>Stream-by-reference</td><td>Locked</td><td>Resolved — required to ship SOT-05 legally</td></tr>
+          <tr><td>Child-speech risk</td><td>No freely licensed child-speech corpus; text fallback mandatory</td><td><span class="badge met">Met</span> — protects SOT-15 from becoming a dead-end</td></tr>
+        </tbody>
+      </table>
+
+      <h3>2.1 Implementation vs architecture — remaining mismatches to close</h3>
+      <table>
+        <thead><tr><th>Topic</th><th>Architecture</th><th>Implementation</th><th>Workflow rule</th></tr></thead>
+        <tbody>
+          <tr><td>Product name</td><td>Kiddo / Kiddo Learning Platform</td><td>Kiddo</td><td><strong>Kiddo Assist</strong> everywhere</td></tr>
+          <tr><td>Video response</td><td>One best video</td><td><code>video_url?</code></td><td><code>video_url</code> (now playing) <strong>plus</strong> <code>suggested_videos[]</code></td></tr>
+          <tr><td>Tutorials</td><td>Implied via skills/quests</td><td>No type</td><td><code>type=tutorial</code> + <code>tutorial_steps</code> ordered content</td></tr>
+          <tr><td>Recommendation agent</td><td>Own build step (10)</td><td>Folded into phase 8</td><td>Keep the agent; phase 8 ships a thin version</td></tr>
+          <tr><td>Voice</td><td>Part of multilingual step</td><td>Split: phase 5 voice, phase 6 languages</td><td>Keep the split. Product rule: after phase 5, Kiddo Assist always speaks</td></tr>
+          <tr><td>Parent / multilingual</td><td>Core sections</td><td>Phases 6 and 9</td><td>Keep as <strong>extensions</strong> that ship, after the core loop works</td></tr>
+          <tr><td>Safety escalation</td><td>Open question</td><td>Holding message + parent webhook</td><td>Adopt implementation as the closed decision</td></tr>
+          <tr><td>Completeness of sources</td><td>“Trusted educational sources”</td><td>License allowlist only</td><td>Add a completeness gate at ingest (see §6)</td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="s3">3. Product definition (locked from source of truth)</h2>
+      <p><strong>Kiddo Assist</strong> is a child-facing friend that talks with a child, then puts the right video on screen from its own knowledge base.</p>
+      <div class="cols">
+        <div class="card">
+          <h3>It is</h3>
+          <ul>
+            <li>A friend who speaks</li>
+            <li>A guide who grows with the child</li>
+            <li>A player of <strong>relevant, best</strong> videos <strong>inside the app</strong></li>
+            <li>A teacher of <strong>complete</strong> sources and tutorials</li>
+            <li>Playful and fun</li>
+            <li>Harmless by construction</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>It is not</h3>
+          <ul>
+            <li>A silent search box</li>
+            <li>A one-shot Q&amp;A bot</li>
+            <li>A YouTube redirect / new-tab opener</li>
+            <li>A clip lottery</li>
+            <li>Chaotic or addictive-by-design</li>
+            <li>“We’ll prompt it to be nice”</li>
+          </ul>
+        </div>
+      </div>
+      <ul>
+        <li><strong>Default modality:</strong> voice in, voice out, video on screen.</li>
+        <li><strong>Fallback modality:</strong> text in (when speech fails), still voice out.</li>
+        <li><strong>Never:</strong> answer-only with no attempt to fetch a video when a relevant video exists.</li>
+      </ul>
+
+      <h2 id="s4">4. System map (how the three docs fit)</h2>
+      <pre>an agent for the children(kids) for.txt     ← source of truth (what / why)
+                │
+                ▼
+     kiddo-architecture.md                  ← system design (how it is shaped)
+                │
+                ▼
+     IMPLEMENTATION-GUIDE.md                ← build book (how it is built, with which tools)
+                │
+                ▼
+     WORKFLOW.md / WORKFLOW.html            ← operating + delivery workflows (how it runs)</pre>
+
+      <p>Three cooperating systems (from architecture) plus the persona thread:</p>
+      <pre class="mermaid">
+flowchart TB
+    subgraph core [Core — required by source of truth]
+        Child[Child] --> Live[Live request flow]
+        Sources[Complete sources + complete tutorials] --> Ingest[Ingestion pipeline]
+        Ingest --> KB[(Knowledge base)]
+        KB --> Live
+        Live --> Player[In-app video + Kiddo Assist speaking]
+        Player --> Child
+        Friend[Kiddo Assist friend persona] -.-> Live
+        Friend -.-> Player
+    end
+
+    subgraph ext [Extensions — not in source of truth]
+        Parent[Parent] --> Dash[Parent dashboard]
+        Dash --> Cfg[Controls / reports]
+        Cfg --> Live
+    end
+      </pre>
+
+      <h2 id="s5">5. Runtime workflow — child session (happy path)</h2>
+      <p>This is the product. Every other workflow exists to make this one safe, complete, and repeatable.</p>
+      <pre class="mermaid">
+sequenceDiagram
+    participant C as Child
+    participant UI as Platform UI
+    participant KA as Kiddo Assist
+    participant API as API gateway
+    participant S as Safety
+    participant O as Orchestrator
+    participant KB as Knowledge base
+    participant P as Player
+
+    KA->>C: Speaks first (greet / check-in / nudge)
+    C->>UI: Speaks (or types if STT fails)
+    UI->>API: audio or text
+    API->>S: input safety + PII redact
+    alt harmful / distress
+        S->>KA: hard-block
+        KA->>C: safe holding words + trusted-adult prompt
+        S-->>API: safety_event for parent
+    else learning or play
+        S->>O: tagged request
+        O->>KB: retrieve sources, tutorials, videos
+        KB-->>O: ranked matches
+        O->>O: pick best video + suggestion list
+        O->>S: output safety on spoken script
+        O-->>UI: answer + video_url + suggested_videos + audio
+        UI->>P: display video on this platform
+        P->>C: video plays
+        KA->>C: speaks alongside (always)
+        KA->>C: short check-in / next guide / related best videos
+    end
+      </pre>
+
+      <h3>5.1 Step-by-step (one turn)</h3>
+      <table>
+        <thead><tr><th>Step</th><th>Actor</th><th>What happens</th><th>SOT</th></tr></thead>
+        <tbody>
+          <tr><td>0</td><td>Kiddo Assist</td><td>If the child is new or idle, <strong>Kiddo Assist speaks first</strong>. Friendship, not a blank prompt.</td><td>SOT-09, SOT-15, SOT-16</td></tr>
+          <tr><td>1</td><td>Child</td><td>Speaks a question, a play request, or a “what next?”. Text only if speech fails.</td><td>SOT-12, SOT-15</td></tr>
+          <tr><td>2</td><td>Frontend</td><td>Captures audio (or text). Shows the friend avatar. Video pane is ready.</td><td>SOT-13</td></tr>
+          <tr><td>3</td><td>API gateway</td><td>Authenticates the child session, rate-limits, logs.</td><td>EXT</td></tr>
+          <tr><td>4</td><td>Multilingual (if needed)</td><td>STT → language detect → code-switch → pivot to English. Skip translation when already English or confidence is low.</td><td>EXT-02</td></tr>
+          <tr><td>5</td><td>Input safety</td><td>Profanity, distress, bullying, adult/off-topic, jailbreak, PII. Hard-block or soft-tag.</td><td>SOT-08</td></tr>
+          <tr><td>6</td><td>Intent</td><td>Learning question / play request / guidance request / concerning.</td><td>SOT-02, SOT-07, SOT-11</td></tr>
+          <tr><td>7</td><td>Orchestrator</td><td>Learning agent, recommendation agent, or safety agent. Safety agent also runs in parallel and can interrupt.</td><td>SOT-08</td></tr>
+          <tr><td>8</td><td>Query construction</td><td>Rewrite the child’s words into a search query. Resolve “that one” from recent turns.</td><td>SOT-06</td></tr>
+          <tr><td>9</td><td>Retrieve from knowledge base</td><td>Vector + metadata search over <strong>videos, complete sources, and complete tutorials</strong>.</td><td>SOT-03, SOT-04, SOT-12</td></tr>
+          <tr><td>10</td><td>Filter</td><td>Age, language, safety clearance, difficulty, duration, <strong>license</strong>, <strong>status=approved</strong>.</td><td>SOT-08, SOT-01</td></tr>
+          <tr><td>11</td><td>Rank “best videos”</td><td><code>relevance × quality × age_fit × duration_fit × completeness × tutorial_fit</code>.</td><td>SOT-05, SOT-06</td></tr>
+          <tr><td>12</td><td>Select</td><td><strong>Now playing</strong> = top video if it clears the relevance bar. <strong>Suggested</strong> = next 2–4 videos. If the match is a tutorial, play step 1 (or the matching step) and keep the rest as the tutorial path.</td><td>SOT-04, SOT-05, SOT-13</td></tr>
+          <tr><td>13</td><td>Speak the teaching</td><td>LLM writes a short, age-tuned, friend-voiced explanation <strong>around</strong> the video. No hallucination outside retrieved context.</td><td>SOT-09, SOT-11, SOT-15</td></tr>
+          <tr><td>14</td><td>Output safety</td><td>Re-check the spoken script. Block → holding response. Soft-flag → parent report, still safe words.</td><td>SOT-08</td></tr>
+          <tr><td>15</td><td>Response builder</td><td><code>{ spoken_answer, audio, video_url, suggested_videos[], tutorial?, quiz?, suggested_next }</code></td><td>SOT-05, SOT-12, SOT-13</td></tr>
+          <tr><td>16</td><td>Platform UI</td><td><strong>Displays the video in the in-app player.</strong> Attribution line visible. Related best videos as suggestions, not a navigate-away.</td><td>SOT-13</td></tr>
+          <tr><td>17</td><td>Kiddo Assist</td><td><strong>Speaks</strong> the explanation while the video plays. Never silent when there is something to say.</td><td>SOT-15</td></tr>
+          <tr><td>18</td><td>Play / check-in</td><td>Mini-question, sticker, or tiny game. Celebrate effort.</td><td>SOT-07</td></tr>
+          <tr><td>19</td><td>Guide</td><td>One next step: next tutorial step, related video, or “want to play a bit?”</td><td>SOT-11, SOT-10</td></tr>
+          <tr><td>20</td><td>Remember</td><td>Progress, watch time, quiz, friendship memory (no PII). Feeds the next turn.</td><td>SOT-10, SOT-16</td></tr>
+        </tbody>
+      </table>
+
+      <h3>5.2 Idle / proactive turn</h3>
+      <p>Required by “speak to them as always” and “be friend with them”.</p>
+      <ol>
+        <li>Child is idle past a gentle threshold (age-tuned, parent-configurable later).</li>
+        <li>Kiddo Assist speaks a short check-in: greeting, a remembered interest, or a playful nudge.</li>
+        <li>Offers one relevant video or a tiny game — still from the knowledge base, still in-app.</li>
+        <li>Never nags. A missed day does not punish (forgiving streaks).</li>
+      </ol>
+
+      <h3>5.3 No-video-match path</h3>
+      <p>If nothing in the knowledge base clears the relevance bar:</p>
+      <ol>
+        <li>Kiddo Assist <strong>still speaks</strong>.</li>
+        <li>Honest friend line: it doesn’t have a great video for that yet.</li>
+        <li>Teach from approved <strong>text/source</strong> chunks if they exist.</li>
+        <li>Offer a nearby tutorial or a play activity.</li>
+        <li>Log a content gap (ingestion backlog). Never invent a video URL. Never send the child off-platform.</li>
+      </ol>
+
+      <h3>5.4 Speech-miss path (protects “speak always”)</h3>
+      <p>Child STT is the known weak spot.</p>
+      <ol>
+        <li>Dual-ASR / LLM repair if available.</li>
+        <li>Kiddo Assist speaks: “I didn’t catch that — want to tap it for me?”</li>
+        <li>Big text button is always on screen. <strong>The UI must never dead-end on a speech miss.</strong></li>
+        <li>After text arrives, the rest of §5.1 is unchanged — including spoken reply + video.</li>
+      </ol>
+
+      <h2 id="s6">6. Knowledge-base workflow — complete sources, complete tutorials, best videos</h2>
+      <p>SOT-03, SOT-04, SOT-05, SOT-12 live or die here.</p>
+
+      <h3>6.1 What may enter the knowledge base</h3>
+      <table>
+        <thead><tr><th>Type</th><th>Meaning</th><th>How “complete” is judged</th></tr></thead>
+        <tbody>
+          <tr><td><code>source</code></td><td>A full educational work or clearly bounded excerpt with license</td><td>Has title, source, license, age band, transcript/text, and is not an unexplained fragment</td></tr>
+          <tr><td><code>tutorial</code></td><td>An <strong>ordered sequence</strong> that teaches one topic end-to-end</td><td>Has a start, a middle, an end, a skill, and a check-for-understanding. A single orphan clip is <strong>not</strong> a tutorial</td></tr>
+          <tr><td><code>video</code></td><td>A playable item streamed by reference</td><td>Transcript exists (for retrieval). Age/safety/license tagged. Relevance is computed at query time</td></tr>
+          <tr><td><code>game</code></td><td>A play activity that teaches</td><td>The fact is in the play, not only in the reward</td></tr>
+        </tbody>
+      </table>
+
+      <h3>6.2 Ingest pipeline (offline)</h3>
+      <pre class="mermaid">
+flowchart TD
+    A[Openly-licensed catalogs] --> B[Collector]
+    B --> C[Processor: clean, chunk, attach transcript]
+    C --> D[Completeness check]
+    D --> E[Metadata: age, language, duration, skills, license]
+    E --> F[Automated safety]
+    F --> G[Quality / pedagogy check]
+    G --> H{Human approval}
+    H -->|reject| X[status=rejected]
+    H -->|approve| I[Embed text + transcripts]
+    I --> J[(LanceDB vectors)]
+    I --> K[(SQLite content + metadata)]
+      </pre>
+      <table>
+        <thead><tr><th>Step</th><th>Gate</th><th>Fail action</th></tr></thead>
+        <tbody>
+          <tr><td>License</td><td>Allowlist. NC sources are embed-only. Unknown license = reject</td><td>Do not store a playable URL</td></tr>
+          <tr><td>Completeness</td><td>Video: transcript + attribution + topic. Tutorial: ordered steps covering the stated learning goal. Source: identifiable full work or labeled excerpt</td><td>Quarantine as <code>incomplete</code> — not searchable</td></tr>
+          <tr><td>Safety</td><td>ShieldGemma on transcript/text + human eyeball</td><td><code>rejected</code></td></tr>
+          <tr><td>Quality</td><td>Age-fit, pedagogical sense, duration sane for age band</td><td><code>rejected</code> or send back</td></tr>
+          <tr><td>Approval</td><td>Human flips <code>review</code> → <code>approved</code></td><td><strong>Nothing is live before this</strong></td></tr>
+          <tr><td>Embed</td><td>bge-m3 into LanceDB; row into SQLite including <code>url</code>, <code>license</code>, <code>attribution</code></td><td>Retry; never half-index</td></tr>
+        </tbody>
+      </table>
+      <p class="callout">Hard rule: we store transcript + metadata + URL. We never store third-party video bytes. The player streams by reference. This is how SOT-13 is legal.</p>
+
+      <h3>6.3 Fetch-from-knowledge-base (live)</h3>
+      <p>This is SOT-12 as an algorithm.</p>
+      <pre>input: child's utterance (pivoted), learner profile, safety tags
+1. Build query from utterance + last 2–3 turns + profile interests
+2. Embed query
+3. Filter-before-retrieve:
+      status=approved
+      age_range contains learner.age
+      safety_tags pass
+      language compatible
+      not in parent restricted_topics
+      duration ≤ age-band max
+4. Retrieve top-K across type in {video, tutorial, source}
+5. Rerank for true relevance
+6. Score videos:
+      best = relevance × quality × age_fit × duration_fit × completeness
+7. If best.score ≥ VIDEO_BAR:
+      now_playing = best
+      suggested_videos = next 2–4 videos
+      if best belongs to a tutorial: attach tutorial path (current step + remaining)
+8. Else if a tutorial matches:
+      now_playing = that tutorial's current/next video step
+      suggested_videos = remaining steps
+9. Else:
+      now_playing = null
+      speak from approved source text + offer nearest tutorial
+10. Return to response builder</pre>
+      <p><code>VIDEO_BAR</code> starts <strong>strict</strong> (better to speak and wait than to play a wrong video). Relax only as the catalog grows. Wrong-video is a SOT-06 failure.</p>
+
+      <h2 id="s7">7. Safety workflow (SOT-08 — non-negotiable)</h2>
+      <p>Safety is a classifier in the path, not a prompt. It runs on the way in, in the background during generation, and on the way out. It also runs at ingest.</p>
+      <pre class="mermaid">
+flowchart TD
+    A[Child input] --> B[PII redact]
+    B --> C[ShieldGemma input]
+    C --> D{severity}
+    D -->|hard: self-harm, abuse, adult| E[Stop]
+    E --> F[Kiddo Assist speaks a holding line]
+    E --> G[Write safety_events immediately]
+    E --> H[Notify parent / trusted adult]
+    D -->|soft: ambiguous| I[Tag and continue]
+    D -->|pass| J[Orchestrator]
+    I --> J
+    J --> K[Learning / recommendation]
+    K --> L[ShieldGemma on partial stream — can interrupt]
+    L --> M[ShieldGemma on final answer]
+    M --> D
+      </pre>
+      <table>
+        <thead><tr><th>Signal</th><th>Child sees / hears</th><th>System does</th></tr></thead>
+        <tbody>
+          <tr><td>Hard block</td><td>Warm, short, non-alarming holding words. Prompt to a trusted adult. No video.</td><td>Stop generation. <code>safety_events</code> row. Parent notify.</td></tr>
+          <tr><td>Soft tag</td><td>Normal helpful turn</td><td>Flag on the request; parent report later</td></tr>
+          <tr><td>Jailbreak / “ignore your rules”</td><td>Refuse in kid language; offer a real learning path</td><td>Treat as hard or high-soft; never comply</td></tr>
+          <tr><td>PII (school, address, phone)</td><td>Continue without repeating the PII</td><td>Redact before LLM and before logs that leave the device</td></tr>
+          <tr><td>Off-platform “just open YouTube”</td><td>Stay in-app; fetch from KB only</td><td>No outbound browse</td></tr>
+        </tbody>
+      </table>
+      <p><strong>Persona limit:</strong> friendship is for learning and comfort, never for compliance. Kiddo Assist never talks a child into an unsafe action, a secret from parents, or a private meeting.</p>
+      <p><strong>Friendship-memory limit:</strong> no PII in memory. Cap facts. Parents can see that memory exists (EXT-01); Kiddo Assist does not hide a second life from the parent.</p>
+
+      <h2 id="s8">8. Friend, play, and growth workflows</h2>
+      <h3>8.1 Friend workflow (SOT-09, SOT-16, SOT-15)</h3>
+      <p>On every spoken turn Kiddo Assist:</p>
+      <ol>
+        <li>Uses the child’s name if known (from parent-approved profile, not scraped PII).</li>
+        <li>Speaks in a warm, slower, age-tuned voice.</li>
+        <li>References a real memory when it helps learning (“you liked rockets — this video is about the Moon”).</li>
+        <li>Celebrates effort, not only correct answers.</li>
+        <li>Ends with a tiny invitation, not a command.</li>
+      </ol>
+      <p>Kiddo Assist <strong>speaks always</strong>: greeting, answer, video-alongside, check-in, goodbye. Text on screen is captions / support, not a replacement for voice once TTS is live.</p>
+
+      <h3>8.2 Playful learning workflow (SOT-07)</h3>
+      <pre>video or tutorial step
+    → 20–40s play beat (match, quiz-as-game, sticker)
+    → fact appears inside the play
+    → streak tick (forgiving)
+    → optional badge
+    → Kiddo Assist speaks praise
+    → next video / next tutorial step / free play</pre>
+      <ul>
+        <li>The game teaches; it is not a sugar coating on a lecture.</li>
+        <li>Streaks do not wipe on one missed day.</li>
+        <li>Rewards stay light. No pressure, no pay-to-win, no dark patterns.</li>
+      </ul>
+
+      <h3>8.3 Guide-and-grow workflow (SOT-10, SOT-11)</h3>
+      <pre>watch/play signal
+    → check-in score  (watched ≠ understood)
+    → update skill graph
+    → frontier skill = what they’re ready for next
+    → recommendation agent speaks one next step
+    → if a complete tutorial is in progress, prefer the next step of that tutorial</pre>
+      <p>Kiddo Assist is a <strong>guider</strong>: it does not dump a library. It offers one good next thing, plus a short list of best related videos the child can pick.</p>
+
+      <h2 id="s9">9. Parent workflow (EXT-01 — ships, does not define the product)</h2>
+      <p>Parents never sit inside the child’s live turn except through configuration loaded at the start of the session.</p>
+      <pre class="mermaid">
+flowchart LR
+    P[Parent logs in] --> D[Dashboard]
+    D --> R[Progress + quiz + watch]
+    D --> C[Controls: topics, screen time, language]
+    D --> S[Safety reports]
+    D --> A[Content approval queue]
+    C --> CFG[(config row)]
+    CFG --> O[Orchestrator on next child turn]
+      </pre>
+      <table>
+        <thead><tr><th>Parent can</th><th>Parent cannot</th></tr></thead>
+        <tbody>
+          <tr><td>See what was learned, which videos played, quiz scores</td><td>Silently listen to a live session in a way the child would not expect</td></tr>
+          <tr><td>Restrict topics, cap session length</td><td>Turn off input/output safety</td></tr>
+          <tr><td>Receive hard-block alerts</td><td>Impersonate Kiddo Assist</td></tr>
+          <tr><td>Approve / reject ingested content</td><td></td></tr>
+        </tbody>
+      </table>
+      <p>Ethics: the child-facing app and the parent area are separate surfaces.</p>
+
+      <h2 id="s10">10. API workflow (one contract for the core loop)</h2>
+      <p>The chat endpoint <strong>is</strong> the product.</p>
+      <p><code>POST /api/chat</code> — Input: <code>{ audio }</code> or <code>{ text }</code>, plus child session.</p>
+      <p>Output (minimum for SOT-05, SOT-12, SOT-13, SOT-15):</p>
+      <pre>{
+  "assistant_name": "Kiddo Assist",
+  "answer": "spoken script in the child's language",
+  "audio_url": "...",
+  "video_url": "https://licensed-source/...",
+  "video": {
+    "id": "...",
+    "title": "...",
+    "attribution": "...",
+    "license": "...",
+    "duration_s": 180
+  },
+  "suggested_videos": [
+    { "id": "...", "title": "...", "reason": "next in tutorial" }
+  ],
+  "tutorial": {
+    "id": "...",
+    "title": "Complete tutorial: fractions",
+    "step": 2,
+    "total_steps": 6
+  },
+  "quiz": null,
+  "suggested_next": "Want to try the next step, or a tiny game?",
+  "safety": { "verdict": "pass" }
+}</pre>
+      <p>Supporting endpoints stay as in the implementation guide (<code>/api/videos/{id}</code>, <code>/api/audio/{id}</code>, <code>/api/profile</code>, <code>/api/parent/*</code>, <code>/api/ingest</code>, <code>/api/health</code>).</p>
+      <p><code>/api/videos/{id}</code> returns metadata + stream-by-reference URL for the in-app player. It does not proxy video bytes.</p>
+
+      <h2 id="s11">11. Frontend workflow (what the child actually sees)</h2>
+      <p>One screen. Low cognitive load. Big controls.</p>
+      <div class="ui">┌─────────────────────────────────────────────┐
+│  Kiddo Assist          streak • badge strip │
+│  [animated friend avatar]                   │
+│                                             │
+│  ┌───────────────────────────────────────┐  │
+│  │         IN-APP VIDEO PLAYER           │  │
+│  │     (this platform — SOT-13)          │  │
+│  │     attribution under the player      │  │
+│  └───────────────────────────────────────┘  │
+│                                             │
+│  Kiddo Assist is speaking…                  │
+│  [captions of what Kiddo Assist just said]  │
+│                                             │
+│  Best videos for you:  [v1] [v2] [v3]       │
+│                                             │
+│  [  BIG MIC  ]     [  TAP TO TYPE  ]        │
+└─────────────────────────────────────────────┘</div>
+      <ul>
+        <li>The video plays <strong>here</strong>. No “open on YouTube” as the primary action.</li>
+        <li>The mic is the default. Type is always available.</li>
+        <li>Suggested videos are on this screen; tapping one plays it here and Kiddo Assist speaks around the new choice.</li>
+        <li>Avatar + voice run even when a video is playing.</li>
+      </ul>
+
+      <h2 id="s12">12. Build workflow — phases (implementation order, source-of-truth gates)</h2>
+      <p>Build order may start with text. <strong>The product is not Kiddo Assist until phase 3 is done.</strong> Voice-always is not Kiddo Assist until phase 5 is done.</p>
+      <table>
+        <thead><tr><th>Phase</th><th>Ships</th><th>Source-of-truth gate</th></tr></thead>
+        <tbody>
+          <tr><td>0 Skeleton</td><td><code>docker compose up</code>; <code>/api/health</code>; Ollama up</td><td>Dev only</td></tr>
+          <tr><td>1 Text chat</td><td>Child types → Gemma answers with output safety</td><td>SOT-08 starting. <strong>Not</strong> the product yet</td></tr>
+          <tr><td>2 RAG</td><td>Answer cites an ingested source</td><td>SOT-03 starting</td></tr>
+          <tr><td><strong>3 Video-first</strong></td><td>Question → best video from KB → <strong>plays in-app</strong>; TTS alongside; <code>suggested_videos</code> returned</td><td><strong>SOT-05, SOT-06, SOT-12, SOT-13.</strong> First honest demo of Kiddo Assist</td></tr>
+          <tr><td>4 Input safety</td><td>Jailbreak / harm / PII handled</td><td>SOT-08 complete for live path</td></tr>
+          <tr><td><strong>5 Voice I/O</strong></td><td>Speech in, <strong>speech out on every turn</strong>; text fallback never dead-ends</td><td><strong>SOT-15, SOT-12.</strong> After this, silence is a bug</td></tr>
+          <tr><td>6 Multilingual</td><td>Hindi in → Hindi spoken out, English pivot</td><td>EXT-02</td></tr>
+          <tr><td>7 Persona</td><td>Name, favorites, proactive greeting, always-friend tone</td><td>SOT-09, SOT-14, SOT-16</td></tr>
+          <tr><td>8 Play + progress + thin recommendation</td><td>Streaks, badges, mastery ≠ views, one “next step”, tutorial step-through</td><td>SOT-07, SOT-10, SOT-11, SOT-04</td></tr>
+          <tr><td>9 Parent dashboard</td><td>Login, progress, controls that change the next child turn, safety reports</td><td>EXT-01</td></tr>
+          <tr><td>10 Ingestion + approval</td><td>Completeness + license + human gate; approved items searchable same day</td><td>SOT-03, SOT-04, SOT-08</td></tr>
+        </tbody>
+      </table>
+      <p class="callout warn">Do not skip phase 3 to polish phase 9. A parent dashboard without in-app relevant video is not this product.</p>
+
+      <h3>12.1 Definition of done for the core loop (phase 3, then re-proven at phase 5)</h3>
+      <p>A reviewer can:</p>
+      <ol>
+        <li>Say (or type) “why is the sky blue?”</li>
+        <li>See a relevant, approved video start <strong>on this platform</strong>.</li>
+        <li>Hear Kiddo Assist speak a short explanation.</li>
+        <li>See 2–4 other <strong>best videos</strong> suggested on the same screen.</li>
+        <li>Confirm the URL is stream-by-reference with license + attribution.</li>
+        <li>Confirm no video bytes were saved to disk.</li>
+      </ol>
+      <p>At phase 5, step 1 must work from the microphone, and step 3 must happen on every turn.</p>
+
+      <h2 id="s13">13. Testing workflow</h2>
+      <h3>13.1 Core-loop tests (source of truth)</h3>
+      <table>
+        <thead><tr><th>Test</th><th>Pass</th></tr></thead>
+        <tbody>
+          <tr><td>Speak/type a learning question</td><td>In-app video from KB, relevant, Kiddo Assist speaks</td></tr>
+          <tr><td>Playful request (“let’s play”)</td><td>Play layer, still safe, still in-app</td></tr>
+          <tr><td>No good video in KB</td><td>Spoken fallback, no fake URL, content-gap logged</td></tr>
+          <tr><td>Tap a suggested video</td><td>Plays here, Kiddo Assist speaks around it</td></tr>
+          <tr><td>Complete tutorial topic</td><td>Ordered steps, not a single orphan clip</td></tr>
+          <tr><td>Harmful / jailbreak / PII</td><td>No unmasked content reaches the child</td></tr>
+          <tr><td>Speech miss</td><td>Text fallback works; Kiddo Assist still speaks</td></tr>
+          <tr><td>Name</td><td>UI and spoken intro say <strong>Kiddo Assist</strong></td></tr>
+        </tbody>
+      </table>
+      <h3>13.2 Keep the implementation guide’s suites</h3>
+      <ul>
+        <li><strong>Unit:</strong> safety golden set, language detect, translation samples, RAG top-1, video vs text fallback.</li>
+        <li><strong>Integration:</strong> <code>POST /api/chat</code> audio → <code>{answer, video_url, suggested_videos, audio_url}</code>; rate limit; parent restriction takes effect.</li>
+        <li><strong><code>eval/</code> kid-safe checklist</strong> before every release (learning, play, adversarial, video family, no stored bytes, license allowlist, child-voice fallback).</li>
+      </ul>
+
+      <h2 id="s14">14. Decisions</h2>
+      <h3>14.1 Closed (do not reopen without a product-owner change)</h3>
+      <table>
+        <thead><tr><th>Decision</th><th>Choice</th><th>Why</th></tr></thead>
+        <tbody>
+          <tr><td>Product name</td><td><strong>Kiddo Assist</strong></td><td>Source of truth</td></tr>
+          <tr><td>Pivot language</td><td>English</td><td>Locked in architecture appendix + implementation</td></tr>
+          <tr><td>Video hosting</td><td>Stream-by-reference, never rehost</td><td>Legal path for SOT-05/SOT-13</td></tr>
+          <tr><td>Runtime</td><td>Local OSS, CPU-capable, $0/month services</td><td>Build constraint</td></tr>
+          <tr><td>Filter order</td><td>Filter-before-retrieve while catalog is small</td><td>Implementation lock</td></tr>
+          <tr><td>Safety</td><td>Classifier in-path, in and out; hard-block vs soft-tag</td><td>SOT-08</td></tr>
+          <tr><td>Escalation</td><td>Immediate <code>safety_events</code> + parent notify + child hears holding words</td><td>Closes architecture open question</td></tr>
+          <tr><td>Always-speak</td><td>After phase 5, every child-visible turn has TTS</td><td>SOT-15</td></tr>
+          <tr><td>Best videos</td><td>Play top-1 in-app <strong>and</strong> return ranked suggestions</td><td>SOT-05 + SOT-13</td></tr>
+          <tr><td>Tutorials</td><td>First-class <code>tutorial</code> with ordered steps</td><td>SOT-04</td></tr>
+        </tbody>
+      </table>
+      <h3>14.2 Still open (do not block phase 3)</h3>
+      <table>
+        <thead><tr><th>Question</th><th>Default until decided</th></tr></thead>
+        <tbody>
+          <tr><td>Exact <code>VIDEO_BAR</code> cutoff</td><td>Strict; log near-misses</td></tr>
+          <tr><td>How social friendship memory may be</td><td>Cap N facts, no PII, parent-visible</td></tr>
+          <tr><td>Gamification per age band</td><td>Forgiving streaks, no punishment</td></tr>
+          <tr><td>Skill graph vs NCERT / other syllabus</td><td>Internal skills first; map later</td></tr>
+          <tr><td>Launch language pair</td><td>English first (phase 3–5), then English+Hindi (phase 6)</td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="s15">15. Corrections the other two docs must take</h2>
+      <p>These keep architecture and implementation honest to the source of truth.</p>
+      <ol>
+        <li>Rename the product / persona to <strong>Kiddo Assist</strong>.</li>
+        <li>State the core loop in one sentence at the top of both docs: <em>child speaks → fetch best video from knowledge base → play it on this platform → Kiddo Assist speaks.</em></li>
+        <li>Add <code>tutorial</code> as a content type; ingest completeness gate.</li>
+        <li>Chat API returns <code>suggested_videos[]</code> plus <code>video_url</code>.</li>
+        <li>Mark parent dashboard and multilingual as extensions.</li>
+        <li>After voice ships, “Kiddo Assist speaks always” is a testable invariant.</li>
+        <li>Close architecture open questions that implementation already locked (pivot, filter order, escalation).</li>
+      </ol>
+
+      <h2 id="s16">16. One-page operator cheat sheet</h2>
+      <div class="card">
+        <p><strong>Who:</strong> children.<br />
+        <strong>Who talks:</strong> Kiddo Assist, always.<br />
+        <strong>What happens after the child speaks:</strong> fetch from knowledge base.<br />
+        <strong>What they see:</strong> the video on this platform.<br />
+        <strong>Which video:</strong> the best relevant one, with other best videos suggested.<br />
+        <strong>What the library holds:</strong> complete sources and complete tutorials, not scraps.<br />
+        <strong>How it feels:</strong> friend, guide, playful, growing.<br />
+        <strong>What it never is:</strong> harmful, silent, off-platform, a random clip.</p>
+        <p>That is the whole product. Everything else is scaffolding.</p>
+      </div>
+
+      <footer>
+        Source of truth: <code>an agent for the children(kids) for.txt</code>.
+        Markdown twin: <code>WORKFLOW.md</code>.
+      </footer>
+    </main>
+  </div>
+</body>
+</html>
