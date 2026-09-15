@@ -436,3 +436,57 @@ def check_output(
     finally:
         if close_conn and db_conn is not None:
             db_conn.close()
+
+# ---------------------------------------------------------------------------
+# Iteration 7 — Input Safety Classification (Phase 4)
+# ShieldGemma in-path classifier + intent stub + parent-alert escalation
+# ---------------------------------------------------------------------------
+
+def check_input_shieldgemma(text: str) -> dict:
+    """ShieldGemma-backed input classifier (Iteration 7 scope).
+
+    Returns a structured result; the deterministic fast-path in check_input()
+    runs first for speed and evaluation repeatability. This hook is where the
+    model-backed classification lives and can be enabled when the model is
+    resident.
+    """
+    # Model-backed classification stub — activates when ShieldGemma is pulled.
+    return {
+        "verdict": "pass",  # "hard" | "soft" | "pass"
+        "category": None,
+        "reason": "ShieldGemma stub (Iteration 7): model not resident; fast-path used.",
+        "severity": None,
+    }
+
+
+INTENT_CLASSES = ("learning", "play", "recommendation", "concerning")
+
+
+def intent_stub(text: str) -> str:
+    """Thin intent-classification stub for input routing (Iteration 7).
+
+    Maps child input to one of: learning / play / recommendation / concerning.
+    Used by the orchestrator to choose the response mode.
+    """
+    t = text.lower()
+    if any(w in t for w in ("how", "why", "what is", "explain", "learn")):
+        return "learning"
+    if any(w in t for w in ("game", "play", "fun", "quiz", "streak")):
+        return "play"
+    if any(w in t for w in ("suggest", "recommend", "more", "next")):
+        return "recommendation"
+    return "concerning"
+
+
+def escalate_to_parent(event_type: str, learner_id: str | None, severity: str = "hard") -> None:
+    """Parent-notify + holding-words escalation path (WORKFLOW §14.1 / guide §0.3).
+
+    Hard input events trigger: safety_events row + parent notify (stub) +
+    child receives holding words (already done in check_input / main.py).
+    Soft events log but do not break the turn.
+    """
+    # Parent-notify stub: in production this hits /api/parent/notify or email.
+    logger.info(
+        "Parent escalation (Iteration 7): event=%s learner=%s severity=%s",
+        event_type, learner_id, severity,
+    )

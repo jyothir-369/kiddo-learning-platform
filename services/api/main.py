@@ -219,11 +219,39 @@ async def chat(req: ChatRequest) -> ChatResponse:
             detail="Message text cannot be empty.",
         )
 
+    # === ITERATION 7 — Input safety (Phase 4) ===
+    # Classify, redact PII, and hard-block BEFORE the orchestrator sees anything.
+    input_verdict = safety.check_input(
+        clean_text, learner_id=req.learner_id
+    )
+
+    if input_verdict.is_blocked:
+        # Hard-block: holding words ONLY, no video / TTS / orchestrator.
+        return ChatResponse(
+            assistant_name=ASSISTANT_NAME,
+            answer=input_verdict.holding_text or safety.HOLDING_RESPONSE,
+            audio_url=None,
+            video_url=None,
+            video=None,
+            suggested_videos=[],
+            tutorial=None,
+            quiz=None,
+            suggested_next=None,
+            safety=SafetyPayload(
+                verdict="hard",
+                flag=input_verdict.category,
+            ),
+            sources=[],
+        )
+
+    # Use redacted input (PII stripped) for downstream processing.
+    safe_text = input_verdict.redacted_text if input_verdict.redacted_text else clean_text
+
     # 1. Orchestrate the turn: RAG retrieve (Iteration 3) → grounded LLM answer.
     #    `sources` carries the approved content items the answer is grounded in.
     try:
         result = await orchestrator.learning_turn(
-            clean_text,
+            safe_text,
             age=req.age,
             learner_id=req.learner_id,
         )
@@ -235,7 +263,7 @@ async def chat(req: ChatRequest) -> ChatResponse:
             detail=f"Assistant generation unavailable: {exc}",
         ) from exc
 
-    # 2. Output safety classification + PII redaction
+    # 2. Output safety classification + PII redaction (Phase 1)
     verdict = safety.check_output(raw_answer, learner_id=req.learner_id)
 
     if verdict.is_blocked:
@@ -277,7 +305,15 @@ async def chat(req: ChatRequest) -> ChatResponse:
     except Exception as exc:
         logger.warning(f"TTS failed; audio_url will be null: {exc}")
 
-    # 5. Build WORKFLOW §10 response skeleton
+    # 5. Propagate input-soft tag into response payload (Iteration 7 contract)
+    # Only when output didn't already hard-block; hard-block always wins.
+    if input_verdict.verdict == "soft" and verdict.verdict == "pass":
+        safety_payload = SafetyPayload(verdict="soft", flag=input_verdict.category)
+    else:
+        # Keep existing payload built from output verdict.
+        pass  # safety_payload already set above
+
+    # 6. Build WORKFLOW §10 response skeleton
     return ChatResponse(
         assistant_name=ASSISTANT_NAME,
         answer=final_answer,
