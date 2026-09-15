@@ -36,6 +36,9 @@ export default function ChatPage() {
   // Speaks Kiddo's line once the turn renders (Iteration 5).
   const audioCtxRef = useRef<AudioContext | null>(null);
   const spokenRef = useRef<string | null>(null);
+  const [recording, setRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
   const [speakBlocked, setSpeakBlocked] = useState(false);
 
   // Play the spoken explanation right after the turn renders. The AudioContext
@@ -63,8 +66,9 @@ export default function ChatPage() {
     }
   }, [response]);
 
-  async function ask(text: string) {
-    if (!text.trim()) return;
+  async function askText(text?: string) {
+    const msg = (text ?? input).trim();
+    if (!msg) return;
     setLoading(true);
     setError(null);
     // Unlock audio from this user gesture so the closing speak still plays.
@@ -277,31 +281,35 @@ export default function ChatPage() {
         </div>
       )}
 
-      {/* Type box (mic arrives in Iteration 8) */}
-      <div style={styles.inputBar}>
+      <div style={{ ...styles.inputBar, alignItems: "flex-end" }}>
+        {/* BIG MIC — Iteration 8 / Phase 5, part A */}
+        <button
+          style={{ ...styles.send, backgroundColor: recording ? "#dc2626" : "#f59e0b", fontSize: "1.3rem", padding: "0.6rem 1rem", borderRadius: "9999px" }}
+          aria-label={recording ? "Stop listening" : "Tap to speak"}
+          onClick={recording ? () => { mediaRecorderRef.current?.stop(); } : startMic}
+          disabled={loading}
+        >
+          {recording ? "⏹" : "🎤"}
+        </button>
+
         <input
-          style={styles.input}
-          placeholder="Ask me something…"
+          style={{ ...styles.input, flex: 1 }}
+          placeholder="Ask me something… (or tap 🎤)"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && !loading) {
-              ask(input);
-              setInput("");
-            }
+            if (e.key === "Enter" && !loading) { askText(); }
           }}
         />
         <button
           style={styles.send}
           disabled={loading}
-          onClick={() => {
-            ask(input);
-            setInput("");
-          }}
+          onClick={() => askText()}
         >
           Send
         </button>
       </div>
+      <p style={styles.hint}>Tap 🎤 to talk — or type for me. Speech miss? I’ll ask you to tap it. 💬</p>
     </div>
   );
 }

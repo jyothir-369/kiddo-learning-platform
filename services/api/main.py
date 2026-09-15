@@ -16,11 +16,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import re
+import os
+import tempfile
+from pathlib import Path
 from typing import Any, Optional
 
 import httpx
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
@@ -32,6 +34,7 @@ import llm
 import orchestrator
 import safety
 import tts
+import stt
 import video
 
 app = FastAPI(title=f"{ASSISTANT_NAME} API", version="0.1.0")
@@ -53,7 +56,7 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 
 class ChatRequest(BaseModel):
-    text: str = Field(..., min_length=1, max_length=4000, description="Child's typed message or transcribed input")
+    text: Optional[str] = Field(None, min_length=0, max_length=4000, description="Child's typed message or transcribed input")
     learner_id: Optional[str] = Field(None, description="Optional learner ID")
     age: Optional[int] = Field(None, ge=3, le=18, description="Child's age for age-tuning")
 
@@ -202,30 +205,100 @@ async def get_audio(audio_id: str) -> FileResponse:
 
 
 # ---------------------------------------------------------------------------
-# Core Chat Loop (Iteration 2 / Phase 1)
+# Iteration 8 — Voice input: STT + mic + speech-miss fallback (Phase 5, part A)
+# ---------------------------------------------------------------------------
+SPEECH_MISS_LINE = "I didn't catch that — want to tap it for me?"
+CONFIDENCE_FLOOR = 0.55
+
+# ---------------------------------------------------------------------------
+# Core Chat Loop (Iteration 2 / Phase 1) — with audio multipart (Iteration 8)
 # ---------------------------------------------------------------------------
 
 @app.post("/api/chat", response_model=ChatResponse)
-async def chat(req: ChatRequest) -> ChatResponse:
+async def chat(
+    text: Optional[str] = Form(None),
+    learner_id: Optional[str] = Form(None),
+    age: Optional[int] = Form(None),
+    audio: Optional[UploadFile] = File(None),
+) -> ChatResponse:
     """Core chat endpoint (WORKFLOW §10).
 
     Takes the child's text, generates an age-tuned response from Gemma,
     screens output via the safety classifier, and returns the response skeleton.
     """
-    clean_text = req.text.strip()
+    clean_text = (text or "").strip()
+    # === ITERATION 8 — Speech in: STT + mic + speech-miss fallback ===
+    if audio and audio.filename:
+        import tempfile
+        suffix = Path(audio.filename).suffix or ".webm"
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            content = await audio.read()
+            tmp.write(content)
+            tmp_path = tmp.name
+        try:
+            stt_result = stt.transcribe(tmp_path)
+            clean_text = stt_result.get("text") or ""
+            conf = stt_result.get("confidence", 0.0)
+        finally:
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
+        if conf < CONFIDENCE_FLOOR or not clean_text:
+            # Speech-miss path (§5.4) — never dead-end; type box stays.
+            final_answer = SPEECH_MISS_LINE
+            # TTS the miss line so Kiddo speaks it (always-speaks invariant, It 9 prep).
+            try:
+                audio_url = await asyncio.to_thread(tts.audio_url_for, final_answer)
+            except Exception:
+                audio_url = None
+            return ChatResponse(
+                assistant_name=ASSISTANT_NAME,
+                answer=final_answer,
+                audio_url=audio_url,
+                video_url=None,
+                video=None,
+                suggested_videos=[],
+                tutorial=None,
+                quiz=None,
+                suggested_next=None,
+                safety=SafetyPayload(verdict="pass", flag=None),
+                sources=[],
+            )
     if not clean_text:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Message text cannot be empty.",
+            detail="Message text cannot be empty (and no audio was provided).",
         )
 
     # === ITERATION 7 — Input safety (Phase 4) ===
     # Classify, redact PII, and hard-block BEFORE the orchestrator sees anything.
-    input_verdict = safety.check_input(
-        clean_text, learner_id=req.learner_id
-    )
+    input_verdict = safety.check_input(clean_text, learner_id=learner_id)
 
     if input_verdict.is_blocked:
+        return ChatResponse(
+            assistant_name=ASSISTANT_NAME,
+            answer=input_verdict.holding_text or safety.HOLDING_RESPONSE,
+            audio_url=None,
+            video_url=None,
+            video=None,
+            suggested_videos=[],
+            tutorial=None,
+            quiz=None,
+            suggested_next=None,
+            safety=SafetyPayload(verdict="hard", flag=input_verdict.category),
+            sources=[],
+        )
+
+    safe_text = input_verdict.redacted_text if input_verdict.redacted_text else clean_text
+
+    # 1. Orchestrate the turn: RAG retrieve (Iteration 3) → grounded LLM answer.
+    try:
+        result = await orchestrator.learning_turn(
+            safe_text,
+            age=age,
+            learner_id=learner_id,
+        )
         # Hard-block: holding words ONLY, no video / TTS / orchestrator.
         return ChatResponse(
             assistant_name=ASSISTANT_NAME,
@@ -252,8 +325,8 @@ async def chat(req: ChatRequest) -> ChatResponse:
     try:
         result = await orchestrator.learning_turn(
             safe_text,
-            age=req.age,
-            learner_id=req.learner_id,
+            age=age,
+            learner_id=learner_id,
         )
         raw_answer = result["answer"]
         sources = result["sources"]
@@ -264,7 +337,7 @@ async def chat(req: ChatRequest) -> ChatResponse:
         ) from exc
 
     # 2. Output safety classification + PII redaction (Phase 1)
-    verdict = safety.check_output(raw_answer, learner_id=req.learner_id)
+    verdict = safety.check_output(raw_answer, learner_id=learner_id)
 
     if verdict.is_blocked:
         final_answer = verdict.holding_text or safety.HOLDING_RESPONSE
@@ -292,7 +365,7 @@ async def chat(req: ChatRequest) -> ChatResponse:
         try:
             video_data = video.build_video_response(
                 result.get("chunks", []),
-                age=req.age,
+                age=age,
             )
         except Exception as exc:
             logger.warning(f"Video selection failed; returning text-only: {exc}")
