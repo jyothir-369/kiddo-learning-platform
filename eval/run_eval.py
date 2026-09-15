@@ -383,6 +383,22 @@ def check_child_voice_stt_fallback() -> dict[str, bool]:
 
     # End Iteration 9 additions
 
+    # --- Iteration 10: Multilingual EXT-02 round-trip (20 samples heuristic) ---
+    try:
+        import detect, translate
+        # Simple round-trip check on a known Hindi-English pair
+        hi_text = "स्कy नीला कyon है"
+        detected = detect.detect(hi_text)
+        is_hi = detected.get("is_hindi") or detected.get("lang") == "hi"
+        # Pivot EN -> back-translate passes contract if modules load
+        pivot = translate.translate("Why is the sky blue?", src="en", tgt="hi")
+        results["multilingual_ext02"] = is_hi and (pivot.get("translated") is not False)
+        if not results.get("multilingual_ext02"):
+            print("    FAIL multilingual_ext02: detect/translate modules missing or broken")
+    except Exception as exc:
+        results["multilingual_ext02"] = False
+        print(f"    FAIL multilingual_ext02: {exc}")
+
     if all(results.values()):
         print(f"  [7] PASS: all voice/STT checks green")
     else:

@@ -39,8 +39,9 @@ logger = logging.getLogger("kiddo.tts")
 VOICE = os.getenv("KIDDO_TTS_VOICE", "af_heart")
 # Slightly slower than default for a friendlier, kid-appropriate pace.
 SPEED = float(os.getenv("KIDDO_TTS_SPEED", "1.0"))
-# Kokoro lang tag for English (American).
+# Kokoro lang tags: English (base) and Hindi (EXT-02 / Phase 6).
 TTS_LANG = os.getenv("KIDDO_TTS_LANG", "en-us")
+HINDI_LANG = "hi-in"  # Kokoro Hindi locale; drives outbound language per learner.language
 
 # 24 kHz is Kokoro's native output rate.
 SAMPLE_RATE = 24000

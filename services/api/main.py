@@ -36,6 +36,8 @@ import safety
 import tts
 import stt
 import video
+import detect  # EXT-02: language detection
+import translate  # EXT-02: OPUS-MT pivot
 
 app = FastAPI(title=f"{ASSISTANT_NAME} API", version="0.1.0")
 
@@ -277,6 +279,18 @@ async def chat(
             detail="Message text cannot be empty (and no audio was provided).",
         )
 
+    # === ITERATION 10 — Multilingual (EXT-02): detect → pivot EN → answer → back-translate ===
+    # Only apply pivot when language is non-English and confidence is reasonable.
+    lang_info = detect.detect(clean_text) if not (audio and audio.filename) else {"lang":"en","is_english":True,"code_switch":False,"confidence":1.0}
+    pivot_text = clean_text
+    if lang_info.get("is_hindi") or lang_info.get("is_english") is False:
+        # Pivot to English internally (guide §6.3 / EXT-02).
+        pivot_result = translate.translate(clean_text, src=lang_info.get("lang","en"), tgt="en")
+        if pivot_result.get("translated"):
+            pivot_text = pivot_result.get("text", clean_text)
+    # After pipeline, back-translate answer to child's language for TTS.
+    child_lang = lang_info.get("lang", "en")
+
     # === ITERATION 7 — Input safety (Phase 4) ===
     # Classify, redact PII, and hard-block BEFORE the orchestrator sees anything.
     input_verdict = safety.check_input(clean_text, learner_id=learner_id)
@@ -347,12 +361,20 @@ async def chat(
         except Exception as exc:
             logger.warning(f"Video selection failed; returning text-only: {exc}")
 
-    # 4. Spoken answer — Kokoro TTS, cached WAV (Iteration 5 / Phase 3, part B).
-    #    Runs off the event loop (CPU synthesis). Soft-fails to audio_url=None.
+    # 4. Spoken answer — TTS (Iteration 5) with EXT-02 Hindi locale support.
+    #    Back-translate answer to child's language before TTS if detected.
+    spoken_text = final_answer
+    tts_lang_tag = tts.TTS_LANG if child_lang.startswith("en") else (tts.HINDI_LANG if child_lang.startswith("hi") else tts.TTS_LANG)
+    # If we pivoted to English internally, translate the final answer back.
+    if child_lang.startswith("hi") or not lang_info.get("is_english", True):
+        back_result = translate.translate(final_answer, src="en", tgt=child_lang)
+        if back_result.get("translated"):
+            spoken_text = back_result.get("text", final_answer)
     audio_url: str | None = None
     try:
-        audio_url = await asyncio.to_thread(tts.audio_url_for, final_answer)
+        audio_url = await asyncio.to_thread(tts.audio_url_for, spoken_text, lang=tts_lang_tag)
     except Exception as exc:
+        logger.warning(f"TTS failed; audio_url will be null: {exc}")
         logger.warning(f"TTS failed; audio_url will be null: {exc}")
 
     # 5. Propagate input-soft tag into response payload (Iteration 7 contract)
