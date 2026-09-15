@@ -239,6 +239,12 @@ async def chat(
             stt_result = stt.transcribe(tmp_path)
             clean_text = stt_result.get("text") or ""
             conf = stt_result.get("confidence", 0.0)
+            # === ITERATION 9 — Speech repair (dual-ASR / LLM post-correction) ===
+            # When confidence is marginal (not already a miss), apply repair hook.
+            if CONFIDENCE_FLOOR <= conf < CONFIDENCE_FLOOR + 0.15 and clean_text:
+                repaired = stt.repair_transcript(clean_text, conf)
+                clean_text = repaired.get("text", clean_text)
+                conf = repaired.get("confidence", conf)
         finally:
             try:
                 os.unlink(tmp_path)
@@ -299,37 +305,8 @@ async def chat(
             age=age,
             learner_id=learner_id,
         )
-        # Hard-block: holding words ONLY, no video / TTS / orchestrator.
-        return ChatResponse(
-            assistant_name=ASSISTANT_NAME,
-            answer=input_verdict.holding_text or safety.HOLDING_RESPONSE,
-            audio_url=None,
-            video_url=None,
-            video=None,
-            suggested_videos=[],
-            tutorial=None,
-            quiz=None,
-            suggested_next=None,
-            safety=SafetyPayload(
-                verdict="hard",
-                flag=input_verdict.category,
-            ),
-            sources=[],
-        )
-
-    # Use redacted input (PII stripped) for downstream processing.
-    safe_text = input_verdict.redacted_text if input_verdict.redacted_text else clean_text
-
-    # 1. Orchestrate the turn: RAG retrieve (Iteration 3) → grounded LLM answer.
-    #    `sources` carries the approved content items the answer is grounded in.
-    try:
-        result = await orchestrator.learning_turn(
-            safe_text,
-            age=age,
-            learner_id=learner_id,
-        )
-        raw_answer = result["answer"]
-        sources = result["sources"]
+        raw_answer = result.get("answer", "")
+        sources = result.get("sources", [])
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

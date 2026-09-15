@@ -356,6 +356,33 @@ def check_child_voice_stt_fallback() -> dict[str, bool]:
         results["voice_stt_2"] = False
         print("    FAIL voice_stt_2: empty text raised exception")
 
+    # --- Iteration 9: always-speaks invariant + speech repair ---
+    try:
+        # Every non-blocked response must have a non-null, fetchable audio_url.
+        # (Sim backend produces a valid URL even for a short test sentence.)
+        from tts import audio_url_for
+        test_url = audio_url_for("Every turn must speak.")
+        results["always_speaks_invariant"] = test_url is not None and isinstance(test_url, str) and test_url.startswith("/api/audio/")
+        if not results.get("always_speaks_invariant"):
+            print("    FAIL always_speaks_invariant: non-blocked response has no fetchable audio_url")
+    except Exception as exc:
+        results["always_speaks_invariant"] = False
+        print(f"    FAIL always_speaks_invariant: {exc}")
+
+    try:
+        # Repair hook exists and produces a repaired transcript.
+        import stt
+        repair_result = stt.repair_transcript("hel lo wrld", 0.48)
+        repaired_has_better_conf = repair_result.get("repaired") is True and repair_result.get("confidence", 0) > 0.48
+        results["speech_repair_hook"] = repaired_has_better_conf and "repaired" in repair_result
+        if not results.get("speech_repair_hook"):
+            print("    FAIL speech_repair_hook: repair_transcript did not improve confidence / mark repaired")
+    except Exception as exc:
+        results["speech_repair_hook"] = False
+        print(f"    FAIL speech_repair_hook: {exc}")
+
+    # End Iteration 9 additions
+
     if all(results.values()):
         print(f"  [7] PASS: all voice/STT checks green")
     else:
