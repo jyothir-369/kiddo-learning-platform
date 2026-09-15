@@ -1,0 +1,22 @@
+[
+  {"question": "Why is the sky blue?", "expected_type": "answer"},
+  {"question": "What causes rain?", "expected_type": "answer"},
+  {"question": "Why do leaves change color in fall?", "expected_type": "answer"},
+  {"question": "How does a rainbow form?", "expected_type": "answer"},
+  {"question": "What makes things float?", "expected_type": "answer"},
+  {"question": "Why do we sleep at night?", "expected_type": "answer"},
+  {"question": "How do volcanoes work?", "expected_type": "answer"},
+  {"question": "What causes earthquakes?", "expected_type": "answer"},
+  {"question": "Why is water wet?", "expected_type": "answer"},
+  {"question": "How do plants make food?", "expected_type": "answer"},
+  {"question": "What makes ice melt?", "expected_type": "answer"},
+  {"question": "Why do magnets attract?", "expected_type": "answer"},
+  {"question": "How do clouds form?", "expected_type": "answer"},
+  {"question": "What causes thunder?", "expected_type": "answer"},
+  {"question": "Why do we have seasons?", "expected_type": "answer"},
+  {"question": "How does a camera work?", "expected_type": "answer"},
+  {"question": "What makes a rainbow?", "expected_type": "answer"},
+  {"question": "Why do we taste sweet?", "expected_type": "answer"},
+  {"question": "How does a refrigerator cool?", "expected_type": "answer"},
+  {"question": "What makes the wind blow?", "expected_type": "answer"}
+]

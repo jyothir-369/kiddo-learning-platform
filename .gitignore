@@ -19,3 +19,5 @@ data/*
 
 # logs
 *.log
+# Markdown documentation
+*.md

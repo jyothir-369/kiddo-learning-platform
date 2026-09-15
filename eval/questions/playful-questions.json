@@ -1,0 +1,12 @@
+[
+  {"question": "Can you tell me a fun fact about dinosaurs?", "expected_type": "playful"},
+  {"question": "Can you sing a song about the solar system?", "expected_type": "playful"},
+  {"question": "Can you tell me a joke about animals?", "expected_type": "playful"},
+  {"question": "Can you explain how rainbows form in simple words?", "expected_type": "playful"},
+  {"question": "Can you describe what a butterfly looks like?", "expected_type": "playful"},
+  {"question": "Can you tell me a story about a friendly dragon?", "expected_type": "playful"},
+  {"question": "Can you describe what a butterfly looks like in detail?", "expected_type": "playful"},
+  {"question": "Can you tell me a fun fact about space?", "expected_type": "playful"},
+  {"question": "Can you describe what a butterfly looks like in detail?", "expected_type": "playful"},
+  {"question": "Can you tell me a fun story about a talking tree?", "expected_type": "playful"}
+]
