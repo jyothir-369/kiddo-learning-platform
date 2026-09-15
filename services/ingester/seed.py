@@ -27,6 +27,8 @@ import config  # noqa: E402  (path above must run first)
 
 import db as kb  # noqa: E402
 
+from embeddings import make_embedder  # noqa: E402  (shared bge-m3 / sim backend)
+
 # ---------------------------------------------------------------------------
 # Dev catalog
 # ---------------------------------------------------------------------------
@@ -374,66 +376,6 @@ def _embedding_text(item: dict[str, Any]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Embedding (BGE-M3 via FlagEmbedding)
-# ---------------------------------------------------------------------------
-
-
-class _Embedder:
-    """Lazy BGE-M3 model; encodes a list of texts to 1024-d dense vectors."""
-
-    def __init__(self) -> None:
-        self._model = None
-
-    def _load(self):
-        from FlagEmbedding import BGEM3FlagModel
-
-        # CPU-only (guide §4). Downloads bge-m3 to the HF cache on first run.
-        self._model = BGEM3FlagModel("BAAI/bge-m3", use_fp16=False, devices="cpu")
-
-    def encode_many(self, texts: list[str]) -> list[list[float]]:
-        if self._model is None:
-            self._load()
-        dense = self._model.encode(texts, return_dense=True, batch_size=8)["dense_vecs"]
-        return [row.tolist() for row in dense]
-
-
-class _SimEmbedder:
-    """Deterministic pseudo-embedder, for offline tests only (no model download).
-
-    Token-hash bag-of-words: each word maps to ±1 on a hashed dimension, then
-    the vector is normalized. Texts that share words get higher cosine similarity,
-    so search semantics are *meaningfully* ordered without bge-m3. Enabled only
-    via KIDDO_SEED_BACKEND=sim — the production/verify seed path is bge-m3.
-    """
-
-    DIM = 1024
-
-    def encode_many(self, texts: list[str]) -> list[list[float]]:
-        import hashlib
-        import re
-
-        out = []
-        for text in texts:
-            vec = [0.0] * self.DIM
-            for token in re.findall(r"[a-z']+", text.lower()):
-                h = hashlib.sha256(token.encode("utf-8")).digest()
-                idx = int.from_bytes(h[:4], "big") % self.DIM
-                sign = 1.0 if h[4] % 2 == 0 else -1.0
-                vec[idx] += sign
-            norm = sum(v * v for v in vec) ** 0.5 or 1.0
-            out.append([v / norm for v in vec])
-        return out
-
-
-def _make_embedder() -> _Embedder | _SimEmbedder:
-    import os
-
-    if os.getenv("KIDDO_SEED_BACKEND", "bge") == "sim":
-        return _SimEmbedder()
-    return _Embedder()
-
-
-# ---------------------------------------------------------------------------
 # Seeding
 # ---------------------------------------------------------------------------
 
@@ -455,11 +397,11 @@ def seed(embed: bool = True, rebuild_vectors: bool = True) -> dict:
     # --- Vectors ---------------------------------------------------------
     if embed and rebuild_vectors:
         texts = [_embedding_text(item) for item in all_items]
-        embedder = _make_embedder()
+        embedder = make_embedder()
         vectors = embedder.encode_many(texts)
 
         kb.LANCEDB_DIR.mkdir(parents=True, exist_ok=True)
-        db = kb.get_lancedb()
+        ldb = kb.get_lancedb()
         # mode="overwrite" atomically replaces an existing table (lancedb 0.38) —
         # drop+create under async connections races and fails with "already exists".
         data = [
@@ -472,10 +414,16 @@ def seed(embed: bool = True, rebuild_vectors: bool = True) -> dict:
                 "difficulty": item.get("difficulty", "beginner"),
                 "safety_tags": str(item.get("safety_tags", [])),
                 "item_type": item["type"],
+                # Filter-before-retrieve columns (guide §6.6): RAG hard-filters on
+                # these in LanceDB before retrieval. duration_s=0 = none recorded.
+                "status": item.get("status", "approved"),
+                "duration_s": item.get("duration_s") or 0,
             }
             for item, text, vec in zip(all_items, texts, vectors)
         ]
-        db.create_table(kb.VECTORS_TABLE, data=data, mode="overwrite")
+        table = ldb.create_table(kb.VECTORS_TABLE, data=data, mode="overwrite")
+        # Lexical half of hybrid retrieval (rag.search FTS pass, Iteration 3).
+        kb.create_fts_index(table, column="text_chunk")
 
     counts = kb.count_items(conn, status="approved")
     conn.close()

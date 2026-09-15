@@ -143,6 +143,12 @@ VECTORS_SCHEMA = pa.schema([
     pa.field("difficulty", pa.string()),
     pa.field("safety_tags", pa.string()),  # JSON array, stored as string
     pa.field("item_type", pa.string()),     # video|tutorial|source|game
+    # Filter-before-retrieve columns (guide §6.6): hard filters applied in
+    # LanceDB BEFORE retrieval. status enables the approved-only gate (Iteration
+    # 16 relies on it: nothing goes live before approval). duration_s=0 means
+    # "no recorded duration" (sources/tutorials/games) — still pass a duration cap.
+    pa.field("status", pa.string()),
+    pa.field("duration_s", pa.int32()),
 ])
 
 VECTORS_TABLE = "content_vectors"
@@ -206,6 +212,30 @@ def create_vectors_table(db_path: Path | None = None) -> lancedb.table.Table:
             db.drop_table(VECTORS_TABLE)
     # Create with empty initial data so the schema is set
     return db.create_table(VECTORS_TABLE, schema=VECTORS_SCHEMA)
+
+
+def create_fts_index(table: lancedb.table.Table, column: str = "text_chunk") -> bool:
+    """Create a full-text index (lexical half of hybrid retrieval).
+
+    Returns True on success, False if the index already exists or the provider
+    is unavailable (e.g. an older LanceDB). RAG (Iteration 3) treats a missing
+    FTS index as a soft feature: retrieval falls back to vector-only.
+    """
+    # create_fts_index() is the working API in lancedb 0.38 (create_index(config=FTS())
+    # is broken there — no column path). Marked deprecated upstream; suppress the
+    # warning rather than chase a config that errors in this pinned version.
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        try:
+            table.create_fts_index(column)
+            return True
+        except Exception as exc:
+            # "already exists" and "not supported" are both acceptable no-ops here.
+            logger = __import__("logging").getLogger("kiddo.db")
+            logger.info(f"FTS index not created for {column}: {exc}")
+            return False
 
 
 # ---------------------------------------------------------------------------

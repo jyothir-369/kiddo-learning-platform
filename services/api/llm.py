@@ -65,13 +65,22 @@ def build_user_prompt(
     *,
     context: str | None = None,
 ) -> str:
-    """Construct the final prompt, optionally injecting RAG context."""
+    """Construct the final prompt, optionally injecting RAG context.
+
+    When context is present the prompt is RAG-constrained (guide §12 risk 5):
+    answer only from the retrieved material, and credit the source line so the
+    child (and the Phase 2 definition of done) can trace the answer.
+    """
     if context:
         return (
-            f"Here is information from approved educational materials:\n"
+            f"Here is information from approved educational materials. Each item "
+            f"shows its source and attribution:\n"
             f"---\n{context.strip()}\n---\n\n"
             f"Child's question: {text.strip()}\n\n"
-            f"Please explain this warmly and simply for the child using the information above:"
+            f"Please explain this warmly and simply for the child. Use ONLY the "
+            f"information above — do not add facts that are not in it. When you "
+            f"finish, tell the child where you learned this, mentioning the source "
+            f"line above."
         )
     return text.strip()
 

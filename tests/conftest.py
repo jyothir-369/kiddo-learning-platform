@@ -3,8 +3,9 @@
 Key job: point DATA_DIR at a throwaway temp dir BEFORE any module imports
 config/db, so tests never touch the real `data/kiddo.db` or `data/vectors/`.
 Also puts services/api on sys.path so `db.py`/`config.py` import cleanly.
-Tests use the deterministic sim embedding backend (see seed._SimEmbedder) so
-they don't download bge-m3.
+Tests use the deterministic sim embedding backend (embeddings.SimEmbedder,
+enabled via KIDDO_SEED_BACKEND=sim / KIDDO_RAG_BACKEND=sim) so they don't
+download bge-m3 or the reranker.
 """
 import os
 import sys
@@ -55,4 +56,15 @@ def _clean_data_store():
         conn.commit()
     finally:
         conn.close()
+
+    # Drop the LanceDB vectors table too, so every test genuinely starts
+    # unseeded. Tests that need a catalog call seed.seed() (which rebuilds it
+    # with mode="overwrite"). Without this, a vector table seeded by an earlier
+    # test would leak into later tests' "unseeded" assertions.
+    try:
+        vdb = db.get_lancedb()
+        vdb.drop_table(db.VECTORS_TABLE)
+    except Exception:
+        pass  # table absent — nothing to drop
+
     yield

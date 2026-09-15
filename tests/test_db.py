@@ -13,6 +13,7 @@ import sqlite3
 import pytest
 
 import db
+import embeddings
 import seed
 
 
@@ -238,7 +239,7 @@ def test_lancedb_search_over_seeded_transcript_returns_hits():
 
     # Query embedded with the SAME sim backend used at seed time.
     query_text = "Why is the sky blue - the blue light scattering in the air"
-    query_vec = seed._SimEmbedder().encode_many([query_text])[0]
+    query_vec = embeddings.SimEmbedder().encode_many([query_text])[0]
 
     results = db.search_content_vectors(table, query_vec, limit=5)
     assert results, "no hits returned over seeded transcript"
@@ -252,7 +253,7 @@ def test_lancedb_search_over_seeded_transcript_returns_hits():
 def test_lancedb_metadata_filters_apply():
     seed.seed(embed=True)
     table = db.get_vectors_table()
-    query_vec = seed._SimEmbedder().encode_many(["counting numbers one two three"])[0]
+    query_vec = embeddings.SimEmbedder().encode_many(["counting numbers one two three"])[0]
     # Filtering to a space video must exclude the counting game.
     results = db.search_content_vectors(
         table, query_vec, limit=5, item_type="video", lang="en"

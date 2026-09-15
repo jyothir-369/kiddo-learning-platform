@@ -2,8 +2,11 @@
 
 Iteration 0: liveness /health.
 Iteration 2 (Phase 1): /api/chat text chat loop with LLM + output safety.
+Iteration 3 (Phase 2): /api/chat routes through RAG grounding (orchestrator →
+  rag retrieval → LLM); the response carries `sources` (approved content items
+  the answer is grounded in).
 Later iterations add /api/videos/{id}, /api/audio/{id}, /api/profile,
-/api/parent/*, /api/ingest, and ML service layers (RAG, TTS, STT, video, persona...).
+/api/parent/*, /api/ingest, and ML service layers (TTS, STT, video...).
 """
 from __future__ import annotations
 
@@ -16,6 +19,7 @@ from pydantic import BaseModel, Field
 
 from config import ASSISTANT_NAME, OLLAMA_HOST
 import llm
+import orchestrator
 import safety
 
 app = FastAPI(title=f"{ASSISTANT_NAME} API", version="0.1.0")
@@ -66,6 +70,23 @@ class SafetyPayload(BaseModel):
     flag: Optional[str] = None
 
 
+class SourceItem(BaseModel):
+    """Grounding metadata for a RAG retrieval hit (Iteration 3 / Phase 2).
+
+    Carries the source id + attribution so an answer can be traced to an
+    approved content item — the definition of done for RAG (guide §9 Phase 2 —
+    "citing an ingested content item", in the answer *or* this metadata).
+    """
+    id: str
+    title: Optional[str] = None
+    type: Optional[str] = None          # video|tutorial|source|game
+    attribution: Optional[str] = None
+    source: Optional[str] = None
+    license: Optional[str] = None
+    url: Optional[str] = None
+    score: Optional[float] = None       # rerank relevance, higher = better
+
+
 class ChatResponse(BaseModel):
     assistant_name: str = ASSISTANT_NAME
     answer: str
@@ -77,6 +98,7 @@ class ChatResponse(BaseModel):
     quiz: Optional[dict[str, Any]] = None
     suggested_next: Optional[str] = None
     safety: SafetyPayload
+    sources: list[SourceItem] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -122,12 +144,16 @@ async def chat(req: ChatRequest) -> ChatResponse:
             detail="Message text cannot be empty.",
         )
 
-    # 1. Generate response from LLM (Gemma via Ollama or simulation backend)
+    # 1. Orchestrate the turn: RAG retrieve (Iteration 3) → grounded LLM answer.
+    #    `sources` carries the approved content items the answer is grounded in.
     try:
-        raw_answer = await llm.generate_response(
+        result = await orchestrator.learning_turn(
             clean_text,
             age=req.age,
+            learner_id=req.learner_id,
         )
+        raw_answer = result["answer"]
+        sources = result["sources"]
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -156,7 +182,7 @@ async def chat(req: ChatRequest) -> ChatResponse:
             flag=None,
         )
 
-    # 3. Build WORKFLOW §10 response skeleton
+    # 3. Build WORKFLOW §10 response skeleton (+ sources grounding, Iteration 3)
     return ChatResponse(
         assistant_name=ASSISTANT_NAME,
         answer=final_answer,
@@ -168,4 +194,5 @@ async def chat(req: ChatRequest) -> ChatResponse:
         quiz=None,
         suggested_next=None,
         safety=safety_payload,
+        sources=sources,
     )
