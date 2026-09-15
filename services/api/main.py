@@ -8,24 +8,30 @@ Iteration 3 (Phase 2): /api/chat routes through RAG grounding (orchestrator →
 Iteration 4 (Phase 3, part A): /api/chat selects the best video from RAG chunks,
   returns video_url + suggested_videos; GET /api/videos/{id} serves stream-by-
   reference metadata.
-Later iterations add /api/audio/{id}, /api/profile, /api/parent/*, /api/ingest,
-and ML service layers (TTS, STT...).
+Iteration 5 (Phase 3, part B): /api/chat returns audio_url for the spoken
+  explanation (Kokoro TTS, cached WAV); GET /api/audio/{id} serves it.
+Later iterations add /api/profile, /api/parent/*, /api/ingest, and STT.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
+import re
 from typing import Any, Optional
 
 import httpx
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
+import config
 from config import ASSISTANT_NAME, OLLAMA_HOST
 import db
 import llm
 import orchestrator
 import safety
+import tts
 import video
 
 app = FastAPI(title=f"{ASSISTANT_NAME} API", version="0.1.0")
@@ -171,6 +177,31 @@ async def get_video(video_id: str) -> VideoMetadata:
 
 
 # ---------------------------------------------------------------------------
+# Cached spoken audio — serves the WAV produced by tts.py (Iteration 5)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/audio/{audio_id}", response_class=FileResponse)
+async def get_audio(audio_id: str) -> FileResponse:
+    """Serve a cached Kokoro WAV by its 64-hex cache id.
+
+    The id is a content hash of the spoken text (see tts.cache_path) — there is
+    no per-user audio; re-serving a cached file is cheap and safe.
+    """
+    if not re.fullmatch(tts.AUDIO_ID_RE, audio_id):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="audio_id must be a 64-char hex content hash.",
+        )
+    path = config.AUDIO_DIR / f"{audio_id}.wav"
+    if not path.is_file():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Audio '{audio_id}' not found.",
+        )
+    return FileResponse(path, media_type="audio/wav", filename=f"{audio_id}.wav")
+
+
+# ---------------------------------------------------------------------------
 # Core Chat Loop (Iteration 2 / Phase 1)
 # ---------------------------------------------------------------------------
 
@@ -238,11 +269,19 @@ async def chat(req: ChatRequest) -> ChatResponse:
         except Exception as exc:
             logger.warning(f"Video selection failed; returning text-only: {exc}")
 
-    # 4. Build WORKFLOW §10 response skeleton
+    # 4. Spoken answer — Kokoro TTS, cached WAV (Iteration 5 / Phase 3, part B).
+    #    Runs off the event loop (CPU synthesis). Soft-fails to audio_url=None.
+    audio_url: str | None = None
+    try:
+        audio_url = await asyncio.to_thread(tts.audio_url_for, final_answer)
+    except Exception as exc:
+        logger.warning(f"TTS failed; audio_url will be null: {exc}")
+
+    # 5. Build WORKFLOW §10 response skeleton
     return ChatResponse(
         assistant_name=ASSISTANT_NAME,
         answer=final_answer,
-        audio_url=None,
+        audio_url=audio_url,
         video_url=video_data["video_url"],
         video=video_data["video"],
         suggested_videos=video_data["suggested_videos"],

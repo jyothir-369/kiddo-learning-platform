@@ -15,3 +15,12 @@ pyarrow>=16.0
 # Iteration 17 (deployment) finalizes this ML stack for the compose image.
 #   # torch>=2.2      (CPU wheel, platform-specific)
 #   # FlagEmbedding>=1.2
+
+# --- TTS (Iteration 5, Phase 3 part B) ---------------------------------------
+# Kokoro (Apache-2.0) via kokoro-onnx + ONNX Runtime — CPU, warm `af_heart`
+# voice; phonemization through the bundled phonemizer/espeak-ng wheels (no
+# compiler needed). Same policy as RAG: not declared here yet; installed on the
+# host for dev/verify; Iteration 17 finalizes the compose image. Model files
+# (kokoro-v1.0.onnx + voices-v1.0.bin) go under data/models/kokoro/.
+#   # kokoro-onnx==0.6.1
+#   # onnxruntime>=1.20.1

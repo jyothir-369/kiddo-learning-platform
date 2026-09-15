@@ -21,6 +21,9 @@ _INGESTER_DIR = _REPO / "services" / "ingester"
 _TMP_DATA = Path(tempfile.mkdtemp(prefix="kiddo_test_data_"))
 os.environ["DATA_DIR"] = str(_TMP_DATA)
 os.environ["KIDDO_SEED_BACKEND"] = "sim"
+# Deterministic TTS (Iteration 5): sim writes a tiny silence WAV — no Kokoro
+# model downloads or ONNX loading in the offline test suite.
+os.environ["KIDDO_TTS_BACKEND"] = "sim"
 
 if str(_API_DIR) not in sys.path:
     sys.path.insert(0, str(_API_DIR))

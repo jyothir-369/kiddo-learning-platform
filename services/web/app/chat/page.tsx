@@ -1,10 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 // Stream-by-reference player: the video URL is always the original source
 // (Wikimedia, NASA, ...) — never a proxied/local byte copy (guide §6.9).
+// audio_url is our own endpoint, so it is prefixed with API_URL.
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+function fullAudioUrl(p: string) {
+  return p.startsWith("http") ? p : `${API_URL}${p}`;
+}
 
 type VideoSuggestion = {
   id: string;
@@ -15,6 +20,7 @@ type VideoSuggestion = {
 type ChatResponse = {
   assistant_name: string;
   answer: string;
+  audio_url: string | null;
   video_url: string | null;
   video: { id: string; title: string; attribution?: string; license?: string; duration_s?: number } | null;
   suggested_videos: VideoSuggestion[];
@@ -27,11 +33,47 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [response, setResponse] = useState<ChatResponse | null>(null);
+  // Speaks Kiddo's line once the turn renders (Iteration 5).
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const spokenRef = useRef<string | null>(null);
+  const [speakBlocked, setSpeakBlocked] = useState(false);
+
+  // Play the spoken explanation right after the turn renders. The AudioContext
+  // was unlocked by the submit click (browser autoplay policy, guide risk 6);
+  // if the policy still blocks programmatic play, surface a tap-to-play button
+  // so the demo never dead-ends on silence.
+  useEffect(() => {
+    if (!response?.audio_url) return;
+    if (spokenRef.current === response.audio_url) return;
+    spokenRef.current = response.audio_url;
+
+    const play = () => {
+      const audio = new Audio(fullAudioUrl(response.audio_url as string));
+      audio.play().catch(() => setSpeakBlocked(true));
+    };
+    try {
+      audioCtxRef.current ??= new AudioContext();
+      if (audioCtxRef.current.state === "suspended") {
+        void audioCtxRef.current.resume().then(play);
+      } else {
+        play();
+      }
+    } catch {
+      play();
+    }
+  }, [response]);
 
   async function ask(text: string) {
     if (!text.trim()) return;
     setLoading(true);
     setError(null);
+    // Unlock audio from this user gesture so the closing speak still plays.
+    try {
+      audioCtxRef.current ??= new AudioContext();
+      void audioCtxRef.current.resume();
+    } catch {
+      /* audio context unsupported — speak button still works */
+    }
     try {
       const res = await fetch(`${API_URL}/api/chat`, {
         method: "POST",
@@ -44,11 +86,19 @@ export default function ChatPage() {
       }
       const data = (await res.json()) as ChatResponse;
       setResponse(data);
+      setSpeakBlocked(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
     } finally {
       setLoading(false);
     }
+  }
+
+  function speakNow() {
+    if (!response?.audio_url) return;
+    setSpeakBlocked(false);
+    const audio = new Audio(fullAudioUrl(response.audio_url));
+    audio.play().catch(() => setSpeakBlocked(true));
   }
 
   async function playSuggestion(s: VideoSuggestion) {
@@ -139,6 +189,18 @@ export default function ChatPage() {
       cursor: "pointer",
     },
     error: { color: "#dc2626", marginTop: "0.5rem" },
+    speakButton: {
+      display: "block",
+      marginTop: "0.75rem",
+      backgroundColor: "#818cf8",
+      color: "#ffffff",
+      border: "none",
+      borderRadius: "9999px",
+      padding: "0.5rem 1.2rem",
+      fontSize: "1rem",
+      fontWeight: 600 as const,
+      cursor: "pointer",
+    },
     hint: { color: "#94a3b8", fontSize: "0.85rem", marginTop: "0.5rem", textAlign: "center" as const },
   };
 
@@ -181,6 +243,13 @@ export default function ChatPage() {
           {/* Kiddo Assist's spoken/written explanation */}
           <div style={styles.card}>
             <div style={styles.answer}>💬 {response.answer}</div>
+
+            {/* Speak on demand — shown if the browser stood up to autoplay */}
+            {response.audio_url && speakBlocked && (
+              <button style={styles.speakButton} onClick={speakNow}>
+                🔊 Hear Kiddo say it
+              </button>
+            )}
 
             {/* Suggestion chips — tap to play another best video */}
             {response.suggested_videos.length > 0 && (

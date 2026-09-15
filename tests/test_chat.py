@@ -6,6 +6,8 @@ Covers:
     `safety.verdict:"pass"`, `assistant_name:"Kiddo Assist"`.
   - WORKFLOW §10 contract skeleton fields:
     `{assistant_name, answer, audio_url, video_url, video, suggested_videos, tutorial, quiz, suggested_next, safety}`.
+    Note: `audio_url` is non-null from Iteration 5 (Kiddo speaks); video fields
+    arrive at Iteration 4 but stay null when no video clears the bar.
   - Crafted harmful output blocked with safe holding line and 'hard' verdict.
   - PII in LLM output is redacted and tagged 'soft'.
   - Validation: empty input returns 422.
@@ -40,7 +42,8 @@ def test_chat_successful_query(client):
     assert data["safety"]["flag"] is None
 
     # WORKFLOW §10 skeleton assertions
-    assert data["audio_url"] is None
+    # Iteration 5: normal turns carry a speakable audio_url (Kiddo speaks).
+    assert data["audio_url"] and data["audio_url"].startswith("/api/audio/")
     assert data["video_url"] is None
     assert data["video"] is None
     assert data["suggested_videos"] == []
