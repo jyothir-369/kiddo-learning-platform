@@ -11,6 +11,7 @@ venv/
 node_modules/
 .next/
 out/
+*.tsbuildinfo
 
 # runtime data (SQLite, LanceDB vectors, cached audio, model caches)
 data/*

@@ -128,9 +128,24 @@ def make_embedder():
 
 
 class BgeReranker:
-    """Cross-encoder reranker (FlagEmbedding → direct transformers)."""
+    """Cross-encoder reranker (FlagEmbedding → direct transformers).
+
+    Always returns **relevance in [0, 1]**: FlagReranker.compute_score returns
+    raw cross-encoder logits (roughly [-12, +12], matching-pair positives) unless
+    `normalize=True` is passed, and newer transformers checkpoints can return raw
+    logits from the head too.  Both branches sigmoid-normalize so downstream
+    consumers (recipe: RAG score, Iteration 4's VIDEO_BAR) see a calibrated
+    probability, not an unbounded logit.  Sigmoid is monotonic, so *ordering* is
+    identical to raw logits — RAG retrieval behavior is unchanged.
+    """
 
     _state: tuple | None = None  # ("flag", model) | ("tf", model, tokenizer)
+
+    @staticmethod
+    def _sigmoid(values: list[float]) -> list[float]:
+        import math
+
+        return [1.0 / (1.0 + math.exp(-v)) for v in values]
 
     def _ensure(self):
         if self._state is not None:
@@ -158,7 +173,14 @@ class BgeReranker:
         pairs = [[query.strip(), c.get("text_chunk") or c.get("content_item_id", "")] for c in chunks]
         kind = self._ensure()
         if kind[0] == "flag":
-            scores = kind[1].compute_score(pairs)
+            try:
+                scores = kind[1].compute_score(pairs, normalize=True)
+            except TypeError:
+                # Older FlagReranker: no normalize arg — sigmoid the raw logits.
+                scores = kind[1].compute_score(pairs)
+                if not isinstance(scores, list):
+                    scores = [scores]
+                return self._sigmoid([float(s) for s in scores])
             if isinstance(scores, float):
                 scores = [scores]
             return [float(s) for s in scores]
@@ -167,7 +189,8 @@ class BgeReranker:
         with torch.no_grad():
             enc = kind[2](pairs, padding=True, truncation=True, return_tensors="pt")
             logits = kind[1](**enc).logits
-        # Cross-encoder logit → probability; ordering is preserved either way.
+        # Cross-encoder logit → probability: the sequence-classification head can
+        # expose raw logits depending on the transformers version, so normalize.
         probs = torch.sigmoid(logits.squeeze(-1))
         return [float(p) for p in probs]
 

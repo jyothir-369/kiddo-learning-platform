@@ -5,11 +5,15 @@ Iteration 2 (Phase 1): /api/chat text chat loop with LLM + output safety.
 Iteration 3 (Phase 2): /api/chat routes through RAG grounding (orchestrator →
   rag retrieval → LLM); the response carries `sources` (approved content items
   the answer is grounded in).
-Later iterations add /api/videos/{id}, /api/audio/{id}, /api/profile,
-/api/parent/*, /api/ingest, and ML service layers (TTS, STT, video...).
+Iteration 4 (Phase 3, part A): /api/chat selects the best video from RAG chunks,
+  returns video_url + suggested_videos; GET /api/videos/{id} serves stream-by-
+  reference metadata.
+Later iterations add /api/audio/{id}, /api/profile, /api/parent/*, /api/ingest,
+and ML service layers (TTS, STT...).
 """
 from __future__ import annotations
 
+import logging
 from typing import Any, Optional
 
 import httpx
@@ -18,11 +22,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from config import ASSISTANT_NAME, OLLAMA_HOST
+import db
 import llm
 import orchestrator
 import safety
+import video
 
 app = FastAPI(title=f"{ASSISTANT_NAME} API", version="0.1.0")
+
+logger = logging.getLogger("kiddo.main")
 
 # Dev-wide CORS; tighten origins in Iteration 17 (deployment).
 app.add_middleware(
@@ -127,6 +135,42 @@ async def health() -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Video metadata — stream-by-reference (Iteration 4 / Phase 3, part A)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/videos/{video_id}")
+async def get_video(video_id: str) -> VideoMetadata:
+    """Return stream-by-reference metadata for a content item.
+
+    Never proxy video bytes — the player uses the original source URL
+    (guide §6.9, SOT-06).
+    """
+    conn = db.get_sqlite()
+    try:
+        row = conn.execute(
+            "SELECT id, title, url, attribution, license, duration_s, status "
+            "FROM content_items WHERE id = ?",
+            (video_id,),
+        ).fetchone()
+    finally:
+        conn.close()
+
+    if row is None or row["status"] != "approved":
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Video '{video_id}' not found or not approved.",
+        )
+
+    return VideoMetadata(
+        id=row["id"],
+        title=row["title"],
+        attribution=row["attribution"],
+        license=row["license"],
+        duration_s=row["duration_s"],
+    )
+
+
+# ---------------------------------------------------------------------------
 # Core Chat Loop (Iteration 2 / Phase 1)
 # ---------------------------------------------------------------------------
 
@@ -182,15 +226,27 @@ async def chat(req: ChatRequest) -> ChatResponse:
             flag=None,
         )
 
-    # 3. Build WORKFLOW §10 response skeleton (+ sources grounding, Iteration 3)
+    # 3. Video selection from RAG chunks (Iteration 4 / Phase 3, part A)
+    #    Skip video on hard-blocked responses — child gets holding words only.
+    video_data: dict = {"video_url": None, "video": None, "suggested_videos": [], "tutorial": None}
+    if not verdict.is_blocked:
+        try:
+            video_data = video.build_video_response(
+                result.get("chunks", []),
+                age=req.age,
+            )
+        except Exception as exc:
+            logger.warning(f"Video selection failed; returning text-only: {exc}")
+
+    # 4. Build WORKFLOW §10 response skeleton
     return ChatResponse(
         assistant_name=ASSISTANT_NAME,
         answer=final_answer,
         audio_url=None,
-        video_url=None,
-        video=None,
-        suggested_videos=[],
-        tutorial=None,
+        video_url=video_data["video_url"],
+        video=video_data["video"],
+        suggested_videos=video_data["suggested_videos"],
+        tutorial=video_data["tutorial"],
         quiz=None,
         suggested_next=None,
         safety=safety_payload,
