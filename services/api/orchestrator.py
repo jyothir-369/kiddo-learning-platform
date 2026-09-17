@@ -19,6 +19,7 @@ import logging
 import llm
 import rag
 import persona
+import progress
 
 logger = logging.getLogger("kiddo.orchestrator")
 
@@ -78,6 +79,7 @@ async def learning_turn(
     Embedding/search failures are soft — an ungrounded answer is better than a
     crash, and `sources == []` tells the caller no citation is available.
     """
+    import json, db
     chunks: list[dict] = []
     context: str | None = None
     try:
@@ -96,6 +98,37 @@ async def learning_turn(
     memory_fragment = ""
     if learner_id:
         memory_fragment = persona.build_memory_prompt_fragment(learner_id, conn=None)
+    # Iteration 12 — Progress / mastery / tutorial step-through
+    tutorial_meta = None
+    quiz_meta = None
+    suggested_next_text = None
+    item_id = None  # Will be derived from chunks if available
+    if chunks:
+        item_id = chunks[0].get("content_item_id") if chunks else None
+    if learner_id and item_id:
+        # Check if item is tutorial; derive step from profile_json or default 1
+        try:
+            conn = db.get_sqlite()
+            row = conn.execute("SELECT type, tutorial_steps FROM content_items WHERE id=?", (item_id,)).fetchone()
+            if row and row[0] == "tutorial" and row[1]:
+                steps_list = json.loads(row[1])
+                total_steps = len(steps_list) if isinstance(steps_list, list) else 1
+                # Derive current step from profile or default 1
+                profile_row = conn.execute("SELECT profile_json FROM learners WHERE id=?", (learner_id,)).fetchone()
+                profile = json.loads(profile_row[0]) if profile_row and profile_row[0] else {}
+                steps = profile.get("tutorial_steps") or {}
+                current_step = steps.get(item_id, 1)
+                tutorial_meta = {"id": item_id, "step": current_step, "total_steps": total_steps}
+                # If step requires check-in, return quiz
+                # Simple rule: every other step requires check-in for mastery
+                if current_step > 0 and (current_step % 2 == 1 or current_step == total_steps):
+                    quiz_meta = progress.build_checkin(learner_id, item_id, current_step, total_steps)
+            conn.close()
+        except Exception:
+            pass
+        # Frontier-based suggestion
+        suggested_next_text = progress.suggested_next(learner_id)
+
     answer = await llm.generate_response(
         text,
         context=context or None,
@@ -109,4 +142,7 @@ async def learning_turn(
         "sources": _sources_from_chunks(chunks),
         "chunks": chunks,
         "context": context,
+        "tutorial": tutorial_meta,
+        "quiz": quiz_meta,
+        "suggested_next": suggested_next_text,
     }

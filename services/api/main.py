@@ -366,6 +366,10 @@ async def chat(
         )
         raw_answer = result.get("answer", "")
         sources = result.get("sources", [])
+        # Iteration 12 fields
+        tutorial_data = result.get("tutorial")
+        quiz_data = result.get("quiz")
+        suggested_next_text = result.get("suggested_next")
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -396,7 +400,7 @@ async def chat(
 
     # 3. Video selection from RAG chunks (Iteration 4 / Phase 3, part A)
     #    Skip video on hard-blocked responses — child gets holding words only.
-    video_data: dict = {"video_url": None, "video": None, "suggested_videos": [], "tutorial": None}
+    video_data: dict = {"video_url": None, "video": None, "suggested_videos": [], "tutorial": tutorial_data or None}
     if not verdict.is_blocked:
         try:
             video_data = video.build_video_response(
@@ -450,9 +454,9 @@ async def chat(
         video_url=video_data["video_url"],
         video=video_data["video"],
         suggested_videos=video_data["suggested_videos"],
-        tutorial=video_data["tutorial"],
-        quiz=None,
-        suggested_next=None,
+        tutorial=video_data.get("tutorial"),
+        quiz=quiz_data,
+        suggested_next=suggested_next_text,
         safety=safety_payload,
         sources=sources,
     )
