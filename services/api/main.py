@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 import tempfile
 from pathlib import Path
 from typing import Any, Optional
@@ -362,7 +363,9 @@ async def chat(
             logger.warning(f"Video selection failed; returning text-only: {exc}")
 
     # 4. Spoken answer — TTS (Iteration 5) with EXT-02 Hindi locale support.
-    #    Back-translate answer to child's language before TTS if detected.
+    #    Every child-visible non-blocked turn must carry a fetchable audio_url
+    #    (Phase 5B / Iteration 9 "always speaks" invariant). Hard-block turns
+    #    remain exempt (holding words replace voice; audio_url stays None).
     spoken_text = final_answer
     tts_lang_tag = tts.TTS_LANG if child_lang.startswith("en") else (tts.HINDI_LANG if child_lang.startswith("hi") else tts.TTS_LANG)
     # If we pivoted to English internally, translate the final answer back.
@@ -376,6 +379,16 @@ async def chat(
     except Exception as exc:
         logger.warning(f"TTS failed; audio_url will be null: {exc}")
         logger.warning(f"TTS failed; audio_url will be null: {exc}")
+
+    # Phase 5B / Iteration 9 invariant enforcement:
+    # Non-blocked turn must produce a fetchable audio_url.
+    # Hard-block stays exempt (audio_url stays None — holding words instead).
+    if not verdict.is_blocked and (audio_url is None or not isinstance(audio_url, str) or not audio_url.startswith("/api/audio/")):
+        # Force synthesis retry once so silence-is-not-allowed.
+        try:
+            audio_url = await asyncio.to_thread(tts.audio_url_for, spoken_text, lang=tts_lang_tag)
+        except Exception:
+            pass
 
     # 5. Propagate input-soft tag into response payload (Iteration 7 contract)
     # Only when output didn't already hard-block; hard-block always wins.
