@@ -290,7 +290,21 @@ async def chat(
         if pivot_result.get("translated"):
             pivot_text = pivot_result.get("text", clean_text)
     # After pipeline, back-translate answer to child's language for TTS.
-    child_lang = lang_info.get("lang", "en")
+    # EXT-02: use learner.language for outbound language
+    child_lang = 'en'
+    try:
+        conn = db.get_sqlite()
+        row = conn.execute("SELECT language FROM learners WHERE id = ?", (learner_id,)).fetchone()
+        conn.close()
+        if row and row[0]:
+            learner_lang = row[0]
+            if learner_lang.startswith("hi"):
+                child_lang = "hi"
+            elif learner_lang.startswith("en"):
+                child_lang = "en"
+    except Exception:
+        pass
+    child_lang = lang_info.get("lang", child_lang)
 
     # === ITERATION 7 — Input safety (Phase 4) ===
     # Classify, redact PII, and hard-block BEFORE the orchestrator sees anything.

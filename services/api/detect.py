@@ -38,3 +38,19 @@ def detect(text: str) -> dict:
         # Model not present yet — heuristic is acceptable for EXT-02 build pass.
         pass
     return result
+
+# EXT-02 per-token code-switch helper
+DEVA_RANGE_START = "ऀ"
+DEVA_RANGE_END = "ॿ"
+LATIN_ALPHAS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+def _token_lang(token: str) -> str:
+    if not token:
+        return ""
+    deva = sum(1 for ch in token if DEVA_RANGE_START <= ch <= DEVA_RANGE_END)
+    latin = sum(1 for ch in token if ch in LATIN_ALPHAS)
+    return "hi" if deva > latin else ("en" if latin > 0 else "")
+
+def code_switch_tokens(text: str) -> list[str]:
+    tokens = text.replace(",", " ").split()
+    return [_token_lang(t) for t in tokens if _token_lang(t)]
