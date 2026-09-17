@@ -345,6 +345,10 @@ async def chat(
             sources=[],
         )
 
+    # === ITERATION 16 — Approval gate: only approved items searchable ===
+    # RAG filter already requires status=approved (Iteration 3). This confirms.
+    # If item is review/rejected, it remains invisible to chat until approved.
+
     # === ITERATION 14 — Parent controls (EXT-01): read config at session start ===
     restricted_topics: list[str] = []
     if learner_id:
@@ -508,6 +512,20 @@ async def get_profile(learner_id: str) -> dict:
         "favorite_memory": favorites,
         "pii_free": all(not persona._is_pii_key(k) for k in memory),
     }
+
+
+@app.post("/api/ingest")
+async def ingest_trigger(admin_token: Optional[str] = Form(None)) -> dict:
+    """Admin trigger to run ingestion pipeline (EXT-02 / Phase 10A + 10B)."""
+    # In production: verify admin auth; here open for demo with gate preservation
+    import collect, check
+    # Sample ingestion run
+    fetched = collect.fetch_wikimedia("sky")
+    results = []
+    for item in fetched:
+        result = check.check_all(item)
+        results.append({"id": item.get("id"), "status": result.get("status"), "verdict": result.get("verdict")})
+    return {"ingested": len(results), "results": results, "note": "EXT-01/02 — nothing approved until human review"}
 
 
 @app.get("/api/parent/reports/{learner_id}")

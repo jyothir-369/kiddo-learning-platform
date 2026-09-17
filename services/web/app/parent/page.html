@@ -1,9 +1,23 @@
 <!-- EXT-01 Parent Dashboard -->
 <!DOCTYPE html>
-<html>
-<head><title>Parent — Kiddo Assist (EXT-01)</title></head>
+<html><head><title>Parent — EXT-01</title></head>
 <body>
-<h1>Parent Dashboard — EXT-01</h1>
-<p>Login + progress + controls + reports + approval queue.</p>
-</body>
-</html>
+<h1>Parent Dashboard — EXT-01 (Phase 9)</h1>
+<section>
+<h2>Progress / Watched / Quiz</h2>
+<p>GET /api/parent/reports/{learner_id}</p>
+</section>
+<section>
+<h2>Controls</h2>
+<p>POST /api/parent/config/{learner_id} — restricted_topics, screen_time_min, language</p>
+</section>
+<section>
+<h2>Approval Queue (Phase 10B — read-only view)</h2>
+<p>GET /api/ingest / review_cli approve/reject — nothing live before approval</p>
+</section>
+<section>
+<h2>Safety / Weekly Digest</h2>
+<p>Reports include watched_items, quiz_scores, safety_events (EXT-01)</p>
+</section>
+<p><strong>Ethics note:</strong> Child app and parent area are separate surfaces.</p>
+</body></html>
