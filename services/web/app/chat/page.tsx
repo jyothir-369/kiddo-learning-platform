@@ -36,7 +36,18 @@ export default function ChatPage() {
   // Speaks Kiddo's line once the turn renders (Iteration 5).
   const audioCtxRef = useRef<AudioContext | null>(null);
   const spokenRef = useRef<string | null>(null);
-  const [recording, setRecording] = useState(false);
+  const [learnerName, setLearnerName] = useState<string | null>(null);
+  const [introPlayed, setIntroPlayed] = useState(false);
+
+  useEffect(() => {
+    // On mount fetch profile for learner (demo uses fixed id) — never nags; just reads.
+    fetch(`${API_URL}/api/profile/demo-learner-01`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d && d.name) setLearnerName(d.name);
+      })
+      .catch(() => {});
+  }, []);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const [speakBlocked, setSpeakBlocked] = useState(false);
@@ -347,8 +358,9 @@ export default function ChatPage() {
       {!response && !loading && !error && (
         <div style={styles.card}>
           <div style={styles.answer}>
-            Hi! I&apos;m Kiddo Assist 🎈 Ask me anything — like
-            &quot;why is the sky blue?&quot;
+            {learnerName ? `Hello ${learnerName}! I'm Kiddo Assist 🎈` : "Hi! I'm Kiddo Assist 🎈"}
+            {learnerName && " I'd love to explore your favorites with you!"}
+            {!learnerName && " Ask me anything — like \"why is the sky blue?\""}
           </div>
         </div>
       )}

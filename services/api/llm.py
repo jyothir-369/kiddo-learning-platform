@@ -42,6 +42,7 @@ def build_system_prompt(
     *,
     age: int | None = None,
     learner_name: str | None = None,
+    memory_fragment: str | None = None,
 ) -> str:
     """Build the persona system prompt tuned to the learner's age and name."""
     if age is not None:
@@ -56,6 +57,11 @@ def build_system_prompt(
 
     if learner_name:
         system += f"\nYou are talking with your friend {learner_name}. Reference their name warmly."
+    if memory_fragment:
+        system += f"\n{memory_fragment}"
+
+    # Consistent assistant-name check
+    system += f"\nYour name is {config.ASSISTANT_NAME}. Always identify yourself by that name."
 
     return system.strip()
 
@@ -139,6 +145,7 @@ async def generate_response(
     age: int | None = None,
     context: str | None = None,
     learner_name: str | None = None,
+    memory_fragment: str | None = None,
     timeout: float = DEFAULT_TIMEOUT,
 ) -> str:
     """Generate an age-appropriate answer from Gemma via Ollama (or sim backend)."""
@@ -147,7 +154,7 @@ async def generate_response(
     if backend == "sim" or os.getenv("KIDDO_LLM_SIM") == "1":
         return _get_simulated_response(prompt)
 
-    system_prompt = build_system_prompt(age=age, learner_name=learner_name)
+    system_prompt = build_system_prompt(age=age, learner_name=learner_name, memory_fragment=memory_fragment)
     user_prompt = build_user_prompt(prompt, context=context)
 
     payload: dict[str, Any] = {

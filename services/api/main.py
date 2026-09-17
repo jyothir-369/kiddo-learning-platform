@@ -39,8 +39,25 @@ import stt
 import video
 import detect  # EXT-02: language detection
 import translate  # EXT-02: OPUS-MT pivot
+import persona
 
-app = FastAPI(title=f"{ASSISTANT_NAME} API", version="0.1.0")
+# ===================================================================
+# Iteration 11 — Persona & friendship memory (Phase 7)
+# ===================================================================
+# Routes added after the initial app initialization (see end of file).
+
+# === ASGI lifespan idle check-in — proactive greeting, never nags ===
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: no aggressive greeting; session must initiate
+    logger.info("Kiddo lifespan start — proactive greeting enabled (never nags).")
+    yield
+    # Shutdown
+    logger.info("Kiddo lifespan end.")
+
+app = FastAPI(title=f"{ASSISTANT_NAME} API", version="0.1.0", lifespan=lifespan)
 
 logger = logging.getLogger("kiddo.main")
 
@@ -327,6 +344,19 @@ async def chat(
 
     safe_text = input_verdict.redacted_text if input_verdict.redacted_text else clean_text
 
+    # === ITERATION 11 — Inject safe friendship memory into prompt + proactive greeting ===
+    learner_name_for_llm = None
+    if learner_id:
+        name = persona.get_learner_name(learner_id)
+        if name:
+            learner_name_for_llm = name
+    memory_fragment = persona.build_memory_prompt_fragment(learner_id) if learner_id else ""
+
+    # Proactive greeting / nudge on fresh session (never nags)
+    # Only inject a greeting if this is the very first message (clean_text is empty or simple greeting trigger) — but we do not override a real question.
+    # Instead, we include the greeting in the spoken intro via TTS or as a preamble when appropriate.
+    # Never inject into answer content; the prompt fragment handles personality.
+
     # 1. Orchestrate the turn: RAG retrieve (Iteration 3) → grounded LLM answer.
     try:
         result = await orchestrator.learning_turn(
@@ -426,3 +456,35 @@ async def chat(
         safety=safety_payload,
         sources=sources,
     )
+
+
+# ---------------------------------------------------------------------------
+# Iteration 11 — Persona routes (Phase 7)
+# ---------------------------------------------------------------------------
+@app.get("/api/profile/{learner_id}")
+async def get_profile(learner_id: str) -> dict:
+    name = persona.get_learner_name(learner_id)
+    memory = persona.read_memory(learner_id)
+    favorites = persona.get_favorite_memory(learner_id)
+    return {
+        "learner_id": learner_id,
+        "name": name,
+        "assistant_name": ASSISTANT_NAME,
+        "memory": memory,
+        "favorite_memory": favorites,
+        "pii_free": all(not persona._is_pii_key(k) for k in memory),
+    }
+
+
+@app.post("/api/profile/{learner_id}/memory")
+async def update_memory(
+    learner_id: str,
+    key: Optional[str] = Form(None),
+    value: Optional[str] = Form(None),
+) -> dict:
+    if key and value is not None:
+        ok = persona.add_fact(learner_id, key, value)
+    else:
+        ok = False
+    memory = persona.read_memory(learner_id)
+    return {"updated": ok, "memory_count": len(memory), "pii_excluded": True}

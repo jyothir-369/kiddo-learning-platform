@@ -18,6 +18,7 @@ import logging
 
 import llm
 import rag
+import persona
 
 logger = logging.getLogger("kiddo.orchestrator")
 
@@ -92,11 +93,15 @@ async def learning_turn(
     if chunks:
         context = rag.build_context(chunks)
 
+    memory_fragment = ""
+    if learner_id:
+        memory_fragment = persona.build_memory_prompt_fragment(learner_id, conn=None)
     answer = await llm.generate_response(
         text,
         context=context or None,
         age=age,
         learner_name=learner_name,
+        memory_fragment=memory_fragment,
     )
 
     return {
