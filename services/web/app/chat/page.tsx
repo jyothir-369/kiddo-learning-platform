@@ -109,6 +109,78 @@ export default function ChatPage() {
     await ask(`tell me about ${s.title}`);
   }
 
+  async function ask(text?: string) {
+    const msg = (text ?? input).trim();
+    if (!msg) return;
+    setLoading(true);
+    setError(null);
+    try {
+      audioCtxRef.current ??= new AudioContext();
+      void audioCtxRef.current.resume();
+    } catch {}
+    try {
+      const res = await fetch(`${API_URL}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: msg, age: 8 }),
+      });
+      if (!res.ok) {
+        const detail = (await res.json().catch(() => null))?.detail;
+        throw new Error(detail || `Request failed (${res.status})`);
+      }
+      const data = (await res.json()) as ChatResponse;
+      setResponse(data);
+      setSpeakBlocked(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Something went wrong.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function startMic() {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setError("Microphone not available — please type for me.");
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      chunksRef.current = [];
+      const recorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      recorder.onstop = async () => {
+        setRecording(false);
+        stream.getTracks().forEach(t => t.stop());
+        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        if (!blob.size) return;
+        const form = new FormData();
+        form.append("audio", blob, "recording.webm");
+        form.append("age", "8");
+        setLoading(true);
+        try {
+          const res = await fetch(`${API_URL}/api/chat`, { method: "POST", body: form });
+          if (!res.ok) {
+            const detail = (await res.json().catch(() => null))?.detail;
+            throw new Error(detail || `Request failed (${res.status})`);
+          }
+          const data = (await res.json()) as ChatResponse;
+          setResponse(data);
+          setSpeakBlocked(false);
+        } catch (e) {
+          setError(e instanceof Error ? e.message : "Something went wrong.");
+        } finally {
+          setLoading(false);
+        }
+      };
+      recorder.start();
+      setRecording(true);
+    } catch (e) {
+      setError("Couldn't start microphone — please type for me.");
+    }
+  }
+
+
   const styles = {
     page: {
       fontFamily: "'Segoe UI', system-ui, sans-serif",
