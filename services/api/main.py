@@ -40,6 +40,7 @@ import video
 import detect  # EXT-02: language detection
 import translate  # EXT-02: OPUS-MT pivot
 import persona
+import play
 
 # ===================================================================
 # Iteration 11 — Persona & friendship memory (Phase 7)
@@ -478,6 +479,24 @@ async def get_profile(learner_id: str) -> dict:
         "favorite_memory": favorites,
         "pii_free": all(not persona._is_pii_key(k) for k in memory),
     }
+
+
+@app.get("/api/play/streak/{learner_id}")
+async def get_streak_route(learner_id: str) -> dict:
+    streak = play.update_streak(learner_id)
+    return streak
+
+
+@app.get("/api/play/badges/{learner_id}")
+async def get_badges_route(learner_id: str) -> dict:
+    badges = play.get_badges(learner_id)
+    return {"badges": badges}
+
+
+@app.post("/api/play/game")
+async def create_game(topic: Optional[str] = Form("animals")) -> dict:
+    game = play.generate_game("demo", topic=topic)
+    return game
 
 
 @app.post("/api/profile/{learner_id}/memory")

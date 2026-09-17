@@ -51,6 +51,19 @@ export default function ChatPage() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const [speakBlocked, setSpeakBlocked] = useState(false);
+  const [streak, setStreak] = useState<number>(0);
+  const [badges, setBadges] = useState<string[]>([]);
+
+  useEffect(() => {
+    fetch(`${API_URL}/api/play/streak/demo-learner-01`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setStreak(d.current || 0); })
+      .catch(() => {});
+    fetch(`${API_URL}/api/play/badges/demo-learner-01`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setBadges(d.badges || []); })
+      .catch(() => {});
+  }, []);
 
   // Play the spoken explanation right after the turn renders. The AudioContext
   // was unlocked by the submit click (browser autoplay policy, guide risk 6);
@@ -293,6 +306,18 @@ export default function ChatPage() {
 
   return (
     <div style={styles.page}>
+      {/* Streak / badge strip (Iteration 13) — never punitive, just celebratory */}
+      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", padding: "0.25rem 0", flexWrap: "wrap" }}>
+        <span style={{ fontSize: "1rem", fontWeight: 600 }}>
+          🔥 Streak: {streak || 0}
+        </span>
+        {badges.map(b => (
+          <span key={b} style={{ background: "#fde047", borderRadius: "9999px", padding: "0.2rem 0.6rem", fontSize: "0.8rem", fontWeight: 600 }}>
+            🏅 {b}
+          </span>
+        ))}
+      </div>
+
       <header style={styles.header}>
         <span style={styles.logo}>🎈</span>
         <h1 style={styles.title}>Kiddo Assist</h1>
