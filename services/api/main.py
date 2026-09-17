@@ -18,6 +18,7 @@ import asyncio
 import logging
 import os
 import re
+import json
 import tempfile
 from pathlib import Path
 from typing import Any, Optional
@@ -41,6 +42,7 @@ import detect  # EXT-02: language detection
 import translate  # EXT-02: OPUS-MT pivot
 import persona
 import play
+import parent
 
 # ===================================================================
 # Iteration 11 — Persona & friendship memory (Phase 7)
@@ -343,6 +345,33 @@ async def chat(
             sources=[],
         )
 
+    # === ITERATION 14 — Parent controls (EXT-01): read config at session start ===
+    restricted_topics: list[str] = []
+    if learner_id:
+        try:
+            cfg = parent.read_config(learner_id)
+            restricted_topics = cfg.get("restricted_topics", [])
+        except Exception:
+            pass
+
+    # === ITERATION 14 — Restrict next child turn if topic is restricted ===
+    if restricted_topics and clean_text:
+        for rt in restricted_topics:
+            if rt.lower() in clean_text.lower():
+                return ChatResponse(
+                    assistant_name=ASSISTANT_NAME,
+                    answer=f"I'm not able to talk about {rt} — let's talk about something else! Would you like to ask about animals, space, or numbers?",
+                    audio_url=None,
+                    video_url=None,
+                    video=None,
+                    suggested_videos=[],
+                    tutorial=None,
+                    quiz=None,
+                    suggested_next=None,
+                    safety=SafetyPayload(verdict="pass", flag="restricted_topic"),
+                    sources=[],
+                )
+
     safe_text = input_verdict.redacted_text if input_verdict.redacted_text else clean_text
 
     # === ITERATION 11 — Inject safe friendship memory into prompt + proactive greeting ===
@@ -479,6 +508,34 @@ async def get_profile(learner_id: str) -> dict:
         "favorite_memory": favorites,
         "pii_free": all(not persona._is_pii_key(k) for k in memory),
     }
+
+
+@app.get("/api/parent/reports/{learner_id}")
+async def parent_reports(learner_id: str) -> dict:
+    reports = parent.get_reports(learner_id)
+    return reports
+
+
+@app.get("/api/parent/config/{learner_id}")
+async def parent_get_config(learner_id: str) -> dict:
+    return parent.read_config(learner_id)
+
+
+@app.post("/api/parent/config/{learner_id}")
+async def parent_post_config(
+    learner_id: str,
+    restricted_topics: Optional[str] = Form(None),
+    screen_time_min: Optional[int] = Form(None),
+    language: Optional[str] = Form(None),
+) -> dict:
+    topics = json.loads(restricted_topics) if restricted_topics else None
+    ok = parent.write_config(
+        learner_id,
+        restricted_topics=topics,
+        screen_time_min=screen_time_min,
+        language=language,
+    )
+    return {"updated": ok, "config": parent.read_config(learner_id)}
 
 
 @app.get("/api/play/streak/{learner_id}")
