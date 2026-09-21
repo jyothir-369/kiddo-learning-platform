@@ -9,6 +9,11 @@ from pathlib import Path
 # Product name per the source of truth (SOT-14). Never change at runtime.
 ASSISTANT_NAME = os.getenv("ASSISTANT_NAME", "Kiddo Assist")
 
+# Dev-routing option: when set, LLM calls route through OpenRouter instead of Ollama.
+# Set OPENROUTER_API_KEY and OPENROUTER_MODEL env vars; leave empty for default Ollama.
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openai/gpt-3.5-turbo")
+
 # Ollama address. "http://ollama:11434" when running inside Docker Compose;
 # "http://127.0.0.1:11434" when the API runs on the host against a local/other Ollama.
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
