@@ -5,7 +5,7 @@ name: kiddo-assist
 
 services:
   ollama:
-    image: ollama/ollama:latest
+    image: ollama/ollama:0.6.8
     container_name: kiddo-assist-ollama
     volumes:
       - ollama_models:/root/.ollama
@@ -26,8 +26,7 @@ services:
       GEMMA_TAG: ${GEMMA_TAG:-gemma3:4b}
       DATA_DIR: /app/data
     volumes:
-      # Bind mount so profiles/vector store/audio live on the host repo.
-      - ./data:/app/data
+      - data:/app/data
     ports:
       - "8000:8000"
 
@@ -44,3 +43,4 @@ services:
 
 volumes:
   ollama_models:
+  data:
