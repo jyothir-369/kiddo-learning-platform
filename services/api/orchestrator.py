@@ -23,6 +23,19 @@ import progress
 
 logger = logging.getLogger("kiddo.orchestrator")
 
+# Phase 2 — session-boundary awareness (Section 2 / Section 4 — gentle wind-down)
+SESSION_BOUNDARY_MINUTES = 30
+SESSION_WIND_DOWN_MESSAGE = (
+    "That was a lot of great questions today — want to save some for next time?"
+)
+
+
+def session_needs_wind_down(duration_minutes: float | None, turn_count: int) -> bool:
+    """Recommend gentle session boundary when session is long/late or many turns."""
+    if duration_minutes is not None and duration_minutes >= SESSION_BOUNDARY_MINUTES:
+        return True
+    return turn_count >= 15  # ~15 turns as approximate boundary
+
 DEFAULT_LANG = "en"
 
 

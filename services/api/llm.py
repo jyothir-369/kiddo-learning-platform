@@ -169,6 +169,31 @@ async def generate_response(
         },
     }
 
+    # OpenRouter dev-routing (item d): route through OpenRouter when configured.
+    openrouter_key = getattr(config, "OPENROUTER_API_KEY", None) or os.getenv("OPENROUTER_API_KEY", "")
+    if openrouter_key:
+        openrouter_model = getattr(config, "OPENROUTER_MODEL", None) or os.getenv("OPENROUTER_MODEL", "openai/gpt-3.5-turbo")
+        url = "https://openrouter.ai/api/v1/chat/completions"
+        payload = {
+            "model": openrouter_model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+        }
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                resp = await client.post(url, json=payload, headers={"Authorization": f"Bearer {openrouter_key}", "Content-Type": "application/json"})
+                resp.raise_for_status()
+                data = resp.json()
+                choices = data.get("choices", [])
+                if choices:
+                    return choices[0].get("message", {}).get("content", "").strip()
+                return data.get("response", "").strip()
+        except Exception as exc:
+            logger.error(f"OpenRouter generation failed: {exc}")
+            raise LLMServiceError(f"OpenRouter call failed: {exc}") from exc
+
     url = f"{config.OLLAMA_HOST}/api/generate"
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:

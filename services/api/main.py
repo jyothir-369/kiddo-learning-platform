@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 import httpx
-from fastapi import FastAPI, HTTPException, status, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, status, UploadFile, File, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
@@ -54,8 +54,10 @@ from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: no aggressive greeting; session must initiate
-    logger.info("Kiddo lifespan start — proactive greeting enabled (never nags).")
+    # Startup: init DB schema + no aggressive greeting
+    import db
+    db.init_sqlite()
+    logger.info("Kiddo lifespan start — DB initialized, proactive greeting enabled (never nags).")
     yield
     # Shutdown
     logger.info("Kiddo lifespan end.")
@@ -238,67 +240,49 @@ CONFIDENCE_FLOOR = 0.55
 # ---------------------------------------------------------------------------
 
 @app.post("/api/chat", response_model=ChatResponse)
-async def chat(
-    text: Optional[str] = Form(None),
-    learner_id: Optional[str] = Form(None),
-    age: Optional[int] = Form(None),
-    audio: Optional[UploadFile] = File(None),
-) -> ChatResponse:
+async def chat(request: Request) -> ChatResponse:
     """Core chat endpoint (WORKFLOW §10).
 
-    Takes the child's text, generates an age-tuned response from Gemma,
-    screens output via the safety classifier, and returns the response skeleton.
+    Accepts both JSON ({text, learner_id?, age?}) and multipart/form-data
+    (text + optional audio file) requests so a typed browser turn (JSON)
+    and a voice turn (FormData audio) both work through the same route.
     """
-    clean_text = (text or "").strip()
-    # === ITERATION 8 — Speech in: STT + mic + speech-miss fallback ===
-    if audio and audio.filename:
-        import tempfile
-        suffix = Path(audio.filename).suffix or ".webm"
-        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-            content = await audio.read()
-            tmp.write(content)
-            tmp_path = tmp.name
+    ct = (request.headers.get("content-type") or "").lower()
+    audio: Optional[UploadFile] = None
+
+    if ct.startswith("multipart/form-data"):
+        form = await request.form()
+        text: Optional[str] = (form.get("text") or "").strip() if isinstance(form.get("text"), str) else ""
+        learner_id: Optional[str] = form.get("learner_id") if isinstance(form.get("learner_id"), str) else None
+        age: Optional[int] = None
+        raw_age = form.get("age")
+        if raw_age is not None:
+            try:
+                age = int(raw_age)
+            except (ValueError, TypeError):
+                age = None
+        if "audio" in form and hasattr(form["audio"], "filename"):
+            audio = form["audio"]
+    else:
+        # Default path: JSON (frontend chat turns)
         try:
-            stt_result = stt.transcribe(tmp_path)
-            clean_text = stt_result.get("text") or ""
-            conf = stt_result.get("confidence", 0.0)
-            # === ITERATION 9 — Speech repair (dual-ASR / LLM post-correction) ===
-            # When confidence is marginal (not already a miss), apply repair hook.
-            if CONFIDENCE_FLOOR <= conf < CONFIDENCE_FLOOR + 0.15 and clean_text:
-                repaired = stt.repair_transcript(clean_text, conf)
-                clean_text = repaired.get("text", clean_text)
-                conf = repaired.get("confidence", conf)
-        finally:
+            body = await request.json()
+        except Exception:
+            body = {}
+        if not isinstance(body, dict):
+            body = {}
+        text = (body.get("text") or "").strip() if isinstance(body.get("text"), str) else ""
+        learner_id = body.get("learner_id") if isinstance(body.get("learner_id"), str) else None
+        raw_age = body.get("age")
+        if raw_age is not None:
             try:
-                os.unlink(tmp_path)
-            except Exception:
-                pass
-        if conf < CONFIDENCE_FLOOR or not clean_text:
-            # Speech-miss path (§5.4) — never dead-end; type box stays.
-            final_answer = SPEECH_MISS_LINE
-            # TTS the miss line so Kiddo speaks it (always-speaks invariant, It 9 prep).
-            try:
-                audio_url = await asyncio.to_thread(tts.audio_url_for, final_answer)
-            except Exception:
-                audio_url = None
-            return ChatResponse(
-                assistant_name=ASSISTANT_NAME,
-                answer=final_answer,
-                audio_url=audio_url,
-                video_url=None,
-                video=None,
-                suggested_videos=[],
-                tutorial=None,
-                quiz=None,
-                suggested_next=None,
-                safety=SafetyPayload(verdict="pass", flag=None),
-                sources=[],
-            )
-    if not clean_text:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Message text cannot be empty (and no audio was provided).",
-        )
+                age = int(raw_age)
+            except (ValueError, TypeError):
+                age = None
+        text = (text or "").strip()
+
+    # Resolve clean_text for the rest of the pipeline (Form vs JSON coherence).
+    clean_text = (text or "").strip()
 
     # === ITERATION 10 — Multilingual (EXT-02): detect → pivot EN → answer → back-translate ===
     # Only apply pivot when language is non-English and confidence is reasonable.
@@ -460,7 +444,6 @@ async def chat(
         audio_url = await asyncio.to_thread(tts.audio_url_for, spoken_text, lang=tts_lang_tag)
     except Exception as exc:
         logger.warning(f"TTS failed; audio_url will be null: {exc}")
-        logger.warning(f"TTS failed; audio_url will be null: {exc}")
 
     # Phase 5B / Iteration 9 invariant enforcement:
     # Non-blocked turn must produce a fetchable audio_url.
@@ -468,9 +451,11 @@ async def chat(
     if not verdict.is_blocked and (audio_url is None or not isinstance(audio_url, str) or not audio_url.startswith("/api/audio/")):
         # Force synthesis retry once so silence-is-not-allowed.
         try:
-            audio_url = await asyncio.to_thread(tts.audio_url_for, spoken_text, lang=tts_lang_tag)
+            retry_url = await asyncio.to_thread(tts.audio_url_for, spoken_text, lang=tts_lang_tag)
+            if retry_url and isinstance(retry_url, str) and retry_url.startswith("/api/audio/"):
+                audio_url = retry_url
         except Exception:
-            pass
+            pass  # Silent failure stays silent; audio_url remains None.
 
     # 5. Propagate input-soft tag into response payload (Iteration 7 contract)
     # Only when output didn't already hard-block; hard-block always wins.

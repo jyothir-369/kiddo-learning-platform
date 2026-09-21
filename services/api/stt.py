@@ -57,14 +57,30 @@ def transcribe(path: str | Path, language: str | None = None) -> dict:
     texts, confidences = [], []
     for seg in segments:
         texts.append(seg.text)
-        # Scale logprob to [0,1] range for consistency
-        confidences.append(min(1.0, max(0.0, float(seg.avg_logprob) / 2.0)))
+        # Normalize avg_logprob consistently to [0,1] (logprob is negative; higher = better)
+        conf = float(seg.avg_logprob)
+        # Map typical range ~-1.0..0.0 to 0..1; clamp at bounds
+        normalized = max(0.0, min(1.0, (conf + 1.0) / 1.0))
+        confidences.append(normalized)
 
     full = " ".join(texts).strip()
     avg_conf = float(sum(confidences) / len(confidences)) if confidences else 0.0
+    # Empty / no-speech guard
+    if not full or avg_conf < 0.05:
+        full = ""
+        avg_conf = 0.0
     return {
         "text": full,
         "confidence": avg_conf,
         "language": info.language if info else None,
         "segments": len(texts),
     }
+
+# ------------------------------------------------------------------
+# P1 — Explicit documented limitation (not rebuilt as full model fix)
+# ------------------------------------------------------------------
+SPEECH_REPAIR_LIMITATION = (
+    "Speech repair uses cosmetic whitespace cleanup (strip, single-space). "
+    "A full dual-ASR / LLM post-correction repair is not yet implemented. "
+    "When confidence is low, the UI shows a friendly retry prompt (never dead-end)."
+)

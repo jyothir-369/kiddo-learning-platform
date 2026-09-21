@@ -39,6 +39,9 @@ def update_streak(learner_id: str, conn=None) -> dict:
         db_conn = db.get_sqlite()
         close = True
     try:
+        # Ensure learner exists (fix FK failure on fresh DB)
+        db_conn.execute("INSERT OR IGNORE INTO learners (id, name, age, language) VALUES (?, ?, ?, ?)", (learner_id, "Demo", 8, "en"))
+        db_conn.commit()
         from datetime import datetime, timezone
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         streak = get_streak(learner_id, conn=db_conn)
