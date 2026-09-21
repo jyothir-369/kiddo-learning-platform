@@ -32,12 +32,13 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [response, setResponse] = useState<ChatResponse | null>(null);
+  const [responses, setResponses] = useState<ChatResponse[]>([]);
   // Speaks Kiddo's line once the turn renders (Iteration 5).
   const audioCtxRef = useRef<AudioContext | null>(null);
   const spokenRef = useRef<string | null>(null);
   const [learnerName, setLearnerName] = useState<string | null>(null);
   const [introPlayed, setIntroPlayed] = useState(false);
+  const [recording, setRecording] = useState(false);
 
   useEffect(() => {
     // On mount fetch profile for learner (demo uses fixed id) — never nags; just reads.
@@ -70,12 +71,12 @@ export default function ChatPage() {
   // if the policy still blocks programmatic play, surface a tap-to-play button
   // so the demo never dead-ends on silence.
   useEffect(() => {
-    if (!response?.audio_url) return;
-    if (spokenRef.current === response.audio_url) return;
-    spokenRef.current = response.audio_url;
+    if (!responses[responses.length-1]?.audio_url) return;
+    if (spokenRef.current === responses[responses.length-1]?.audio_url) return;
+    spokenRef.current = responses[responses.length-1]?.audio_url;
 
     const play = () => {
-      const audio = new Audio(fullAudioUrl(response.audio_url as string));
+      const audio = new Audio(fullAudioUrl(responses[responses.length-1]?.audio_url as string));
       audio.play().catch(() => setSpeakBlocked(true));
     };
     try {
@@ -88,7 +89,7 @@ export default function ChatPage() {
     } catch {
       play();
     }
-  }, [response]);
+  }, [responses]);
 
   async function askText(text?: string) {
     const msg = (text ?? input).trim();
@@ -113,7 +114,7 @@ export default function ChatPage() {
         throw new Error(detail || `Request failed (${res.status})`);
       }
       const data = (await res.json()) as ChatResponse;
-      setResponse(data);
+      responses.push(data); setResponses([...responses, data]);
       setSpeakBlocked(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
@@ -123,10 +124,12 @@ export default function ChatPage() {
   }
 
   function speakNow() {
-    if (!response?.audio_url) return;
+    if (!responses[responses.length-1]?.audio_url) return;
     setSpeakBlocked(false);
-    const audio = new Audio(fullAudioUrl(response.audio_url));
-    audio.play().catch(() => setSpeakBlocked(true));
+    const lastAudio = responses[responses.length-1]?.audio_url; if (lastAudio) {
+      const audio = new Audio(fullAudioUrl(lastAudio as string));
+      audio.play().catch(() => setSpeakBlocked(true));
+    }
   }
 
   async function playSuggestion(s: VideoSuggestion) {
@@ -153,7 +156,7 @@ export default function ChatPage() {
         throw new Error(detail || `Request failed (${res.status})`);
       }
       const data = (await res.json()) as ChatResponse;
-      setResponse(data);
+      responses.push(data); setResponses([...responses, data]);
       setSpeakBlocked(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
@@ -170,7 +173,7 @@ export default function ChatPage() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       chunksRef.current = [];
-      const recorder = new MediaRecorder(stream);
+      const recorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus" : (MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "") });
       mediaRecorderRef.current = recorder;
       recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
       recorder.onstop = async () => {
@@ -189,7 +192,7 @@ export default function ChatPage() {
             throw new Error(detail || `Request failed (${res.status})`);
           }
           const data = (await res.json()) as ChatResponse;
-          setResponse(data);
+          responses.push(data); setResponses([...responses, data]);
           setSpeakBlocked(false);
         } catch (e) {
           setError(e instanceof Error ? e.message : "Something went wrong.");
@@ -327,47 +330,79 @@ export default function ChatPage() {
 
       {loading && (
         <div style={{ ...styles.card, textAlign: "center", color: "#64748b" }}>
-          Kiddo Assist is thinking… ⏳
+          <div>Kiddo is thinking… ⏳</div>
+          <div style={{ fontSize: "0.85rem", marginTop: "0.25rem", color: "#94a3b8" }}>
+            Listening back • Finding a good answer • Speaking soon
+          </div>
         </div>
       )}
 
       {response && !loading && (
         <>
           {/* Video player — plays on this platform, stream-by-reference */}
-          {response.video_url && response.video && (
+          {responses[responses.length-1]?.video_url && responses[responses.length-1]?.video && (
             <div style={styles.card}>
               <video
                 controls
                 autoPlay
                 style={styles.video}
-                src={response.video_url}
+                src={responses[responses.length-1]?.video_url}
                 poster={undefined}
               >
                 Your browser doesn&apos;t support video playback.
               </video>
               <p style={styles.attribution}>
-                🎬 {response.video.title} · {response.video.attribution}{" "}
-                {response.video.license && <>· {response.video.license}</>}
+                🎬 {responses[responses.length-1]?.video.title} · {responses[responses.length-1]?.video.attribution}{" "}
+                {responses[responses.length-1]?.video.license && <>· {responses[responses.length-1]?.video.license}</>}
               </p>
             </div>
           )}
 
           {/* Kiddo Assist's spoken/written explanation */}
           <div style={styles.card}>
-            <div style={styles.answer}>💬 {response.answer}</div>
+            <div aria-live="polite" aria-atomic="true" style={styles.answer}>💬 {responses[responses.length-1]?.answer}</div>
 
             {/* Speak on demand — shown if the browser stood up to autoplay */}
-            {response.audio_url && speakBlocked && (
+            {responses[responses.length-1]?.audio_url && speakBlocked && (
               <button style={styles.speakButton} onClick={speakNow}>
                 🔊 Hear Kiddo say it
               </button>
             )}
 
+            {/* Tutorial card (P0 #5 — was dead API data) */}
+            {responses[responses.length-1]?.tutorial && (
+              <div style={{ ...styles.card, marginTop: "0.75rem", background: "#fef3c7" }}>
+                <h3 style={{ margin: 0, fontSize: "1rem" }}>Tutorial: step {responses[responses.length-1]?.tutorial.step} of {responses[responses.length-1]?.tutorial.total_steps}</h3>
+                <p style={{ margin: "0.25rem 0 0" }}>
+                  <button style={styles.chip} onClick={() => {}}>Next →</button>
+                </p>
+              </div>
+            )}
+
+            {/* Quiz card (P0 #5 — was dead API data) */}
+            {responses[responses.length-1]?.quiz && (
+              <div style={{ ...styles.card, marginTop: "0.75rem", background: "#dbeafe" }}>
+                <p style={{ fontWeight: 600 }}>{responses[responses.length-1]?.quiz.question}</p>
+                <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
+                  {responses[responses.length-1]?.quiz.options?.map((opt) => (
+                    <button key={opt} style={styles.chip} onClick={() => {}}>{opt}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Suggested next (P0 #5) */}
+            {responses[responses.length-1]?.suggested_next && (
+              <p style={{ ...styles.hint, marginTop: "0.5rem" }}>
+                🌱 Next: {responses[responses.length-1]?.suggested_next}
+              </p>
+            )}
+
             {/* Suggestion chips — tap to play another best video */}
-            {response.suggested_videos.length > 0 && (
+            {responses[responses.length-1]?.suggested_videos.length > 0 && (
               <>
                 <div style={{ ...styles.chips, marginTop: "1rem" }}>
-                  {response.suggested_videos.map((s) => (
+                  {responses[responses.length-1]?.suggested_videos.map((s) => (
                     <button key={s.id} style={styles.chip} onClick={() => playSuggestion(s)}>
                       ▶ {s.title}
                     </button>
@@ -403,7 +438,7 @@ export default function ChatPage() {
 
         <input
           style={{ ...styles.input, flex: 1 }}
-          placeholder="Ask me something… (or tap 🎤)"
+          placeholder="Ask me something… (or tap 🎤)" aria-label="Type your question"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
